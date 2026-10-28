@@ -1,0 +1,67 @@
+info:
+  name: Get deleted vehicle - 404 Not Found
+  type: http
+  seq: 10
+  tags:
+    - Vehicles
+    - ErrorContract
+
+http:
+  method: GET
+  url: "{{baseUrl}}/vehicles/:vehicleId"
+  params:
+    - name: vehicleId
+      value: "{{vehicleId}}"
+      type: path
+      description: Unique identifier (UUID) of the deleted vehicle.
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/problem+json
+    - expression: res.body.type
+      operator: eq
+      value: https://problems-registry.smartbear.com/not-found/
+    - expression: res.body.status
+      operator: eq
+      value: "404"
+  scripts:
+    - type: tests
+      code: |-
+        const notFoundProblemSchema = {
+          type: "object",
+          required: ["type", "title", "status", "detail"],
+          properties: {
+            type: { type: "string", const: "https://problems-registry.smartbear.com/not-found/" },
+            title: { type: "string", minLength: 1 },
+            status: { type: "integer", const: 404 },
+            detail: { type: "string", minLength: 1 },
+            instance: { type: "string" },
+            code: { type: "string" }
+          }
+        };
+
+        test("GET /vehicles/:vehicleId after deletion returns 404 application/problem+json", function () {
+          expect(res.getStatus()).to.equal(404);
+          expect(res.getHeader("content-type")).to.include("application/problem+json");
+        });
+
+        test("404 response conforms to RFC 9457 ProblemDetails not-found schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(notFoundProblemSchema);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Verifies that retrieving a deleted or non-existent vehicle returns `404 Not Found` with `Content-Type: application/problem+json` and the SmartBear Problem Details Registry `not-found` type.

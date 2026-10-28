@@ -1,0 +1,85 @@
+info:
+  name: Replace vehicle with stale ETag - 412 Precondition Failed
+  type: http
+  seq: 7
+  tags:
+    - Vehicles
+    - ErrorContract
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/vehicles/:vehicleId"
+  headers:
+    - name: If-Match
+      value: '"stale-etag-00000000"'
+      description: Stale entity tag (`ETag`) value to verify optimistic concurrency failure (`412 Precondition Failed`).
+  params:
+    - name: vehicleId
+      value: "{{vehicleId}}"
+      type: path
+      description: Unique identifier (UUID) of the vehicle.
+  body:
+    type: json
+    data: |-
+      {
+        "vin": "1FUJGHDV0CLBP8899",
+        "licensePlate": "IL-LOG-4021",
+        "make": "Freightliner",
+        "model": "Cascadia",
+        "year": 2024,
+        "type": "SemiTractor",
+        "capacityKg": 19000,
+        "capacityVolumeM3": 85.5,
+        "status": "Available"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "412"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/problem+json
+    - expression: res.body.type
+      operator: eq
+      value: https://problems-registry.smartbear.com/business-rule-violation/
+    - expression: res.body.status
+      operator: eq
+      value: "412"
+  scripts:
+    - type: tests
+      code: |-
+        const preconditionProblemSchema = {
+          type: "object",
+          required: ["type", "title", "status", "detail"],
+          properties: {
+            type: { type: "string", const: "https://problems-registry.smartbear.com/business-rule-violation/" },
+            title: { type: "string", minLength: 1 },
+            status: { type: "integer", const: 412 },
+            detail: { type: "string", minLength: 1 },
+            instance: { type: "string" },
+            code: { type: "string" }
+          }
+        };
+
+        test("PUT /vehicles/:vehicleId with mismatched If-Match returns 412 application/problem+json", function () {
+          expect(res.getStatus()).to.equal(412);
+          expect(res.getHeader("content-type")).to.include("application/problem+json");
+        });
+
+        test("412 response conforms to RFC 9457 ProblemDetails business-rule-violation schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(preconditionProblemSchema);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Verifies that supplying a stale `If-Match` header when updating a vehicle returns `412 Precondition Failed` with `Content-Type: application/problem+json` and the SmartBear Problem Details Registry `business-rule-violation` type.

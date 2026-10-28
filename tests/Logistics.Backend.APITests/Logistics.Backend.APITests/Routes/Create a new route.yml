@@ -1,0 +1,459 @@
+info:
+  name: Create a new route
+  type: http
+  seq: 1
+  tags:
+    - Routes
+
+http:
+  method: POST
+  url: "{{baseUrl}}/routes"
+  headers:
+    - name: Idempotency-Key
+      value: "{{routeIdempotencyKey}}"
+      description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+  body:
+    type: json
+    data: |-
+      {
+        "code": "RTE-MW-101",
+        "name": "Chicago O'Hare to Downtown Distribution Loop",
+        "description": "Morning primary freight corridor with one intermediate drop.",
+        "status": "Active",
+        "estimatedDistanceKm": 34.8,
+        "estimatedDurationMinutes": 55,
+        "waypoints": [
+          {
+            "sequenceNumber": 1,
+            "label": "O'Hare Regional Hub",
+            "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+            "latitude": 41.9742,
+            "longitude": -87.9073,
+            "stopType": "Origin",
+            "dwellTimeMinutes": 20
+          },
+          {
+            "sequenceNumber": 2,
+            "label": "West Loop Cross-Dock",
+            "address": "800 W Fulton Market, Chicago, IL 60607",
+            "latitude": 41.8868,
+            "longitude": -87.6476,
+            "stopType": "Delivery",
+            "dwellTimeMinutes": 15
+          },
+          {
+            "sequenceNumber": 3,
+            "label": "South Loop Fulfillment Center",
+            "address": "1600 S State St, Chicago, IL 60616",
+            "latitude": 41.8601,
+            "longitude": -87.6272,
+            "stopType": "Destination",
+            "dwellTimeMinutes": 20
+          }
+        ]
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['location']
+      operator: contains
+      value: /routes/
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: isString
+    - expression: res.body.code
+      operator: eq
+      value: RTE-MW-101
+    - expression: res.body.waypoints
+      operator: isArray
+    - expression: res.body.waypoints.length
+      operator: eq
+      value: "3"
+  scripts:
+    - type: before-request
+      code: |-
+        const { v4: uuidv4 } = require('uuid');
+        bru.setVar("routeIdempotencyKey", uuidv4());
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201 && res.getBody() && res.getBody().id) {
+          bru.setVar("routeId", res.getBody().id);
+        }
+        if (res.getHeader("etag")) {
+          bru.setVar("routeEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const waypointSchema = {
+          type: "object",
+          required: ["sequenceNumber", "label", "latitude", "longitude", "stopType"],
+          properties: {
+            sequenceNumber: { type: "integer", minimum: 1 },
+            label: { type: "string", minLength: 1, maxLength: 120 },
+            address: { type: ["string", "null"], maxLength: 250 },
+            latitude: { type: "number", minimum: -90, maximum: 90 },
+            longitude: { type: "number", minimum: -180, maximum: 180 },
+            stopType: { type: "string", enum: ["Origin", "Pickup", "Delivery", "Waypoint", "Destination"] },
+            dwellTimeMinutes: { type: "integer", minimum: 0 }
+          }
+        };
+
+        const routeSchema = {
+          type: "object",
+          required: ["id", "code", "name", "status", "waypoints", "createdAt", "updatedAt"],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            code: { type: "string", minLength: 2, maxLength: 32, pattern: "^[A-Z0-9-]+$" },
+            name: { type: "string", minLength: 1, maxLength: 120 },
+            description: { type: ["string", "null"], maxLength: 500 },
+            status: { type: "string", enum: ["Draft", "Active", "Archived"] },
+            estimatedDistanceKm: { type: ["number", "null"], minimum: 0 },
+            estimatedDurationMinutes: { type: ["integer", "null"], minimum: 0 },
+            waypoints: {
+              type: "array",
+              minItems: 2,
+              items: waypointSchema
+            },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("POST /routes returns 201 Created with Location and ETag headers", function () {
+          expect(res.getStatus()).to.equal(201);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("location")).to.be.a("string").and.include(`/routes/${res.getBody().id}`);
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("POST /routes response conforms to OpenAPI Route schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(routeSchema);
+        });
+
+        test("POST /routes persists route metadata and ordered waypoints", function () {
+          const body = res.getBody();
+          expect(body.code).to.equal("RTE-MW-101");
+          expect(body.name).to.equal("Chicago O'Hare to Downtown Distribution Loop");
+          expect(body.status).to.equal("Active");
+          expect(body.waypoints).to.have.lengthOf(3);
+          expect(body.waypoints[0].sequenceNumber).to.equal(1);
+          expect(body.waypoints[0].stopType).to.equal("Origin");
+          expect(body.waypoints[1].sequenceNumber).to.equal(2);
+          expect(body.waypoints[1].stopType).to.equal("Delivery");
+          expect(body.waypoints[2].sequenceNumber).to.equal(3);
+          expect(body.waypoints[2].stopType).to.equal("Destination");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 201 Response
+    description: Route successfully created.
+    request:
+      url: "{{baseUrl}}/routes"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Morning primary freight corridor with one intermediate drop.",
+            "status": "Active",
+            "estimatedDistanceKm": 34.8,
+            "estimatedDurationMinutes": 55,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "West Loop Cross-Dock",
+                "address": "800 W Fulton Market, Chicago, IL 60607",
+                "latitude": 41.8868,
+                "longitude": -87.6476,
+                "stopType": "Delivery",
+                "dwellTimeMinutes": 15
+              },
+              {
+                "sequenceNumber": 3,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 20
+              }
+            ]
+          }
+    response:
+      status: 201
+      statusText: Created
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Morning primary freight corridor with one intermediate drop.",
+            "status": "Draft",
+            "estimatedDistanceKm": 34.8,
+            "estimatedDurationMinutes": 55,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              }
+            ],
+            "createdAt": "2026-10-27T18:40:00Z",
+            "updatedAt": "2026-10-27T18:40:00Z"
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/routes"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Morning primary freight corridor with one intermediate drop.",
+            "status": "Active",
+            "estimatedDistanceKm": 34.8,
+            "estimatedDurationMinutes": 55,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "West Loop Cross-Dock",
+                "address": "800 W Fulton Market, Chicago, IL 60607",
+                "latitude": 41.8868,
+                "longitude": -87.6476,
+                "stopType": "Delivery",
+                "dwellTimeMinutes": 15
+              },
+              {
+                "sequenceNumber": 3,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 20
+              }
+            ]
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 409 Response
+    description: A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).
+    request:
+      url: "{{baseUrl}}/routes"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Morning primary freight corridor with one intermediate drop.",
+            "status": "Active",
+            "estimatedDistanceKm": 34.8,
+            "estimatedDurationMinutes": 55,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "West Loop Cross-Dock",
+                "address": "800 W Fulton Market, Chicago, IL 60607",
+                "latitude": 41.8868,
+                "longitude": -87.6476,
+                "stopType": "Delivery",
+                "dwellTimeMinutes": 15
+              },
+              {
+                "sequenceNumber": 3,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 20
+              }
+            ]
+          }
+    response:
+      status: 409
+      statusText: Conflict
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/already-exists/",
+            "title": "Already exists",
+            "status": 409,
+            "detail": "The resource being created already exists.",
+            "instance": "/v1/vehicles",
+            "code": "409-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/routes"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Morning primary freight corridor with one intermediate drop.",
+            "status": "Active",
+            "estimatedDistanceKm": 34.8,
+            "estimatedDurationMinutes": 55,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "West Loop Cross-Dock",
+                "address": "800 W Fulton Market, Chicago, IL 60607",
+                "latitude": 41.8868,
+                "longitude": -87.6476,
+                "stopType": "Delivery",
+                "dwellTimeMinutes": 15
+              },
+              {
+                "sequenceNumber": 3,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 20
+              }
+            ]
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: |
+  Registers a new transit or delivery route along with its ordered sequence of geographic waypoints (`waypoints`).
+  Returns `201 Created` with `Location` and `ETag` headers.

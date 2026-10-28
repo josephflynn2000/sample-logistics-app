@@ -1,0 +1,183 @@
+info:
+  name: Get ordered waypoints for a route
+  type: http
+  seq: 7
+  tags:
+    - Routes
+
+http:
+  method: GET
+  url: "{{baseUrl}}/routes/:routeId/waypoints"
+  params:
+    - name: routeId
+      value: "{{routeId}}"
+      type: path
+      description: Unique identifier (UUID) of the route.
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.routeId
+      operator: eq
+      value: "{{routeId}}"
+    - expression: res.body.waypoints
+      operator: isArray
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getHeader("etag")) {
+          bru.setVar("routeEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const routeWaypointsResponseSchema = {
+          type: "object",
+          required: ["routeId", "waypoints"],
+          properties: {
+            routeId: { type: "string", format: "uuid" },
+            waypoints: {
+              type: "array",
+              minItems: 2,
+              items: {
+                type: "object",
+                required: ["sequenceNumber", "label", "latitude", "longitude", "stopType"],
+                properties: {
+                  sequenceNumber: { type: "integer", minimum: 1 },
+                  label: { type: "string", minLength: 1, maxLength: 120 },
+                  address: { type: ["string", "null"], maxLength: 250 },
+                  latitude: { type: "number", minimum: -90, maximum: 90 },
+                  longitude: { type: "number", minimum: -180, maximum: 180 },
+                  stopType: { type: "string", enum: ["Origin", "Pickup", "Delivery", "Waypoint", "Destination"] },
+                  dwellTimeMinutes: { type: "integer", minimum: 0 }
+                }
+              }
+            }
+          }
+        };
+
+        test("GET /routes/:routeId/waypoints returns 200 OK with ETag header", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("GET /routes/:routeId/waypoints response conforms to OpenAPI RouteWaypointsResponse schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(routeWaypointsResponseSchema);
+        });
+
+        test("GET /routes/:routeId/waypoints returns waypoints in ascending sequence order", function () {
+          const expectedId = bru.getVar("routeId") || bru.getEnvVar("routeId");
+          const body = res.getBody();
+          expect(body.routeId).to.equal(expectedId);
+          expect(body.waypoints.length).to.be.at.least(2);
+          body.waypoints.forEach((wp, index) => {
+            expect(wp.sequenceNumber).to.equal(index + 1);
+          });
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Ordered list of route waypoints retrieved successfully.
+    request:
+      url: "{{baseUrl}}/routes/:routeId/waypoints"
+      method: GET
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "routeId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              }
+            ]
+          }
+  - name: 404 Response
+    description: The requested resource was not found (`404 Not Found`).
+    request:
+      url: "{{baseUrl}}/routes/:routeId/waypoints"
+      method: GET
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/not-found/",
+            "title": "Not Found",
+            "status": 404,
+            "detail": "The requested resource was not found.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "404-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/routes/:routeId/waypoints"
+      method: GET
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Retrieves the ordered sequence of geographic waypoints for a specific route.

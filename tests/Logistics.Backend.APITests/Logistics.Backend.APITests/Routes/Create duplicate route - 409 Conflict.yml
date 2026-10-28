@@ -1,0 +1,93 @@
+info:
+  name: Create duplicate route - 409 Conflict
+  type: http
+  seq: 3
+  tags:
+    - Routes
+    - ErrorContract
+
+http:
+  method: POST
+  url: "{{baseUrl}}/routes"
+  body:
+    type: json
+    data: |-
+      {
+        "code": "RTE-MW-101",
+        "name": "Chicago O'Hare to Downtown Distribution Loop",
+        "description": "Duplicate route code test.",
+        "status": "Active",
+        "estimatedDistanceKm": 34.8,
+        "estimatedDurationMinutes": 55,
+        "waypoints": [
+          {
+            "sequenceNumber": 1,
+            "label": "O'Hare Regional Hub",
+            "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+            "latitude": 41.9742,
+            "longitude": -87.9073,
+            "stopType": "Origin",
+            "dwellTimeMinutes": 20
+          },
+          {
+            "sequenceNumber": 2,
+            "label": "South Loop Fulfillment Center",
+            "address": "1600 S State St, Chicago, IL 60616",
+            "latitude": 41.8601,
+            "longitude": -87.6272,
+            "stopType": "Destination",
+            "dwellTimeMinutes": 20
+          }
+        ]
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/problem+json
+    - expression: res.body.type
+      operator: eq
+      value: https://problems-registry.smartbear.com/already-exists/
+    - expression: res.body.status
+      operator: eq
+      value: "409"
+  scripts:
+    - type: tests
+      code: |-
+        const conflictProblemSchema = {
+          type: "object",
+          required: ["type", "title", "status", "detail"],
+          properties: {
+            type: { type: "string", const: "https://problems-registry.smartbear.com/already-exists/" },
+            title: { type: "string", minLength: 1 },
+            status: { type: "integer", const: 409 },
+            detail: { type: "string", minLength: 1 },
+            instance: { type: "string" },
+            code: { type: "string" }
+          }
+        };
+
+        test("POST /routes with duplicate route code returns 409 application/problem+json", function () {
+          expect(res.getStatus()).to.equal(409);
+          expect(res.getHeader("content-type")).to.include("application/problem+json");
+        });
+
+        test("409 response conforms to RFC 9457 ProblemDetails already-exists schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(conflictProblemSchema);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs: |-
+  Verifies that attempting to create a route with an existing `code` returns `409 Conflict` with `Content-Type: application/problem+json` and the SmartBear Problem Details Registry `already-exists` type.

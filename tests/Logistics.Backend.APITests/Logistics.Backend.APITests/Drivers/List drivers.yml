@@ -1,0 +1,431 @@
+info:
+  name: List drivers
+  type: http
+  seq: 2
+  tags:
+    - Drivers
+
+http:
+  method: GET
+  url: "{{baseUrl}}/drivers"
+  params:
+    - name: pageSize
+      value: "25"
+      type: query
+      description: Maximum number of items to return per page (default 25, max 100).
+    - name: pageToken
+      value: ""
+      type: query
+      description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+      disabled: true
+    - name: orderBy
+      value: ""
+      type: query
+      description: Sort expression (e.g., `createdAt desc`, `name asc`).
+      disabled: true
+    - name: status
+      value: Active
+      type: query
+      description: Filter drivers by current availability/employment status.
+      disabled: true
+    - name: status
+      value: Inactive
+      type: query
+      description: Filter drivers by current availability/employment status.
+      disabled: true
+    - name: status
+      value: OnLeave
+      type: query
+      description: Filter drivers by current availability/employment status.
+      disabled: true
+    - name: status
+      value: Suspended
+      type: query
+      description: Filter drivers by current availability/employment status.
+      disabled: true
+    - name: licenseClass
+      value: ClassA
+      type: query
+      description: Filter drivers by commercial driver's license classification.
+      disabled: true
+    - name: licenseClass
+      value: ClassB
+      type: query
+      description: Filter drivers by commercial driver's license classification.
+      disabled: true
+    - name: licenseClass
+      value: ClassC
+      type: query
+      description: Filter drivers by commercial driver's license classification.
+      disabled: true
+    - name: licenseClass
+      value: Standard
+      type: query
+      description: Filter drivers by commercial driver's license classification.
+      disabled: true
+    - name: search
+      value: ""
+      type: query
+      description: Case-insensitive free-text filter applied across key identifying fields.
+      disabled: true
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.body.items
+      operator: isArray
+    - expression: res.body.totalCount
+      operator: gte
+      value: "1"
+  scripts:
+    - type: tests
+      code: |-
+        const driverListSchema = {
+          type: "object",
+          required: ["items", "totalCount"],
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                required: [
+                  "id",
+                  "employeeNumber",
+                  "firstName",
+                  "lastName",
+                  "email",
+                  "phone",
+                  "licenseNumber",
+                  "licenseClass",
+                  "licenseExpiryDate",
+                  "status",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  employeeNumber: { type: "string", minLength: 2, maxLength: 32 },
+                  firstName: { type: "string", minLength: 1, maxLength: 80 },
+                  lastName: { type: "string", minLength: 1, maxLength: 80 },
+                  email: { type: "string", format: "email", maxLength: 254 },
+                  phone: { type: "string", pattern: "^\\+?[1-9]\\d{1,14}$" },
+                  licenseNumber: { type: "string", minLength: 4, maxLength: 32 },
+                  licenseClass: { type: "string", enum: ["ClassA", "ClassB", "ClassC", "Standard"] },
+                  licenseExpiryDate: { type: "string", format: "date" },
+                  status: { type: "string", enum: ["Active", "Inactive", "OnLeave", "Suspended"] },
+                  createdAt: { type: "string", format: "date-time" },
+                  updatedAt: { type: "string", format: "date-time" }
+                }
+              }
+            },
+            nextPageToken: { type: ["string", "null"] },
+            totalCount: { type: "integer", minimum: 0 }
+          }
+        };
+
+        test("GET /drivers returns 200 OK with JSON content", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+        });
+
+        test("GET /drivers response conforms to OpenAPI DriverListResponse schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(driverListSchema);
+        });
+
+        test("GET /drivers includes the registered driver in paginated items", function () {
+          const body = res.getBody();
+          const expectedId = bru.getVar("driverId") || bru.getEnvVar("driverId");
+          expect(body.items.length).to.be.at.least(1);
+          expect(body.totalCount).to.be.at.least(body.items.length);
+          if (expectedId) {
+            const match = body.items.find((d) => d.id === expectedId);
+            expect(match, `Expected driver ${expectedId} in list`).to.not.be.undefined;
+            expect(match.employeeNumber).to.equal("EMP-10482");
+          }
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Paginated list of drivers.
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Active
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: Inactive
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: OnLeave
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: Suspended
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: licenseClass
+          value: ClassA
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: ClassB
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: ClassC
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: Standard
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "items": [
+              {
+                "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                "employeeNumber": "EMP-10482",
+                "firstName": "Elena",
+                "lastName": "Rostova",
+                "email": "elena.rostova@example.com",
+                "phone": "+13125550194",
+                "licenseNumber": "R620-2109-8451",
+                "licenseClass": "ClassA",
+                "licenseExpiryDate": "2028-09-30",
+                "status": "Active",
+                "createdAt": "2026-10-27T18:35:00Z",
+                "updatedAt": "2026-10-27T18:35:00Z"
+              }
+            ],
+            "nextPageToken": null,
+            "totalCount": 1
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Active
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: Inactive
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: OnLeave
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: Suspended
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: licenseClass
+          value: ClassA
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: ClassB
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: ClassC
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: Standard
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Active
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: Inactive
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: OnLeave
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: status
+          value: Suspended
+          type: query
+          description: Filter drivers by current availability/employment status.
+          disabled: true
+        - name: licenseClass
+          value: ClassA
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: ClassB
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: ClassC
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: licenseClass
+          value: Standard
+          type: query
+          description: Filter drivers by commercial driver's license classification.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Retrieves a paginated list of drivers, with optional filtering by status, commercial license class, or search query.
