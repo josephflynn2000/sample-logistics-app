@@ -1,0 +1,15 @@
+# Secrets
+.env*
+
+# Dependencies
+node_modules
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Bruno CLI Test Reports
+reports/
+results.xml
+results.json
+results.html

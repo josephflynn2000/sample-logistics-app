@@ -1,0 +1,471 @@
+info:
+  name: List vehicles
+  type: http
+  seq: 2
+  tags:
+    - Vehicles
+
+http:
+  method: GET
+  url: "{{baseUrl}}/vehicles"
+  params:
+    - name: pageSize
+      value: "25"
+      type: query
+      description: Maximum number of items to return per page (default 25, max 100).
+    - name: pageToken
+      value: ""
+      type: query
+      description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+      disabled: true
+    - name: orderBy
+      value: ""
+      type: query
+      description: Sort expression (e.g., `createdAt desc`, `name asc`).
+      disabled: true
+    - name: status
+      value: Available
+      type: query
+      description: Filter vehicles by operational status.
+      disabled: true
+    - name: status
+      value: InMaintenance
+      type: query
+      description: Filter vehicles by operational status.
+      disabled: true
+    - name: status
+      value: OutOfService
+      type: query
+      description: Filter vehicles by operational status.
+      disabled: true
+    - name: status
+      value: Retired
+      type: query
+      description: Filter vehicles by operational status.
+      disabled: true
+    - name: type
+      value: Van
+      type: query
+      description: Filter vehicles by classification type.
+      disabled: true
+    - name: type
+      value: BoxTruck
+      type: query
+      description: Filter vehicles by classification type.
+      disabled: true
+    - name: type
+      value: SemiTractor
+      type: query
+      description: Filter vehicles by classification type.
+      disabled: true
+    - name: type
+      value: RefrigeratedTruck
+      type: query
+      description: Filter vehicles by classification type.
+      disabled: true
+    - name: type
+      value: Flatbed
+      type: query
+      description: Filter vehicles by classification type.
+      disabled: true
+    - name: minCapacityKg
+      value: "0"
+      type: query
+      description: Filter vehicles having at least the specified payload capacity in kilograms.
+      disabled: true
+    - name: search
+      value: ""
+      type: query
+      description: Case-insensitive free-text filter applied across key identifying fields.
+      disabled: true
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.body.items
+      operator: isArray
+    - expression: res.body.totalCount
+      operator: gte
+      value: "1"
+  scripts:
+    - type: tests
+      code: |-
+        const vehicleListSchema = {
+          type: "object",
+          required: ["items", "totalCount"],
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                required: [
+                  "id",
+                  "vin",
+                  "licensePlate",
+                  "make",
+                  "model",
+                  "year",
+                  "type",
+                  "capacityKg",
+                  "capacityVolumeM3",
+                  "status",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  vin: { type: "string", minLength: 17, maxLength: 17, pattern: "^[A-HJ-NPR-Z0-9]{17}$" },
+                  licensePlate: { type: "string", minLength: 2, maxLength: 20 },
+                  make: { type: "string", minLength: 1, maxLength: 60 },
+                  model: { type: "string", minLength: 1, maxLength: 60 },
+                  year: { type: "integer", minimum: 1990, maximum: 2100 },
+                  type: { type: "string", enum: ["Van", "BoxTruck", "SemiTractor", "RefrigeratedTruck", "Flatbed"] },
+                  capacityKg: { type: "number", minimum: 1 },
+                  capacityVolumeM3: { type: "number", minimum: 0.1 },
+                  status: { type: "string", enum: ["Available", "InMaintenance", "OutOfService", "Retired"] },
+                  createdAt: { type: "string", format: "date-time" },
+                  updatedAt: { type: "string", format: "date-time" }
+                }
+              }
+            },
+            nextPageToken: { type: ["string", "null"] },
+            totalCount: { type: "integer", minimum: 0 }
+          }
+        };
+
+        test("GET /vehicles returns 200 OK with JSON content", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+        });
+
+        test("GET /vehicles response conforms to OpenAPI VehicleListResponse schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(vehicleListSchema);
+        });
+
+        test("GET /vehicles includes the registered vehicle in paginated items", function () {
+          const body = res.getBody();
+          const expectedId = bru.getVar("vehicleId") || bru.getEnvVar("vehicleId");
+          expect(body.items.length).to.be.at.least(1);
+          expect(body.totalCount).to.be.at.least(body.items.length);
+          if (expectedId) {
+            const match = body.items.find((v) => v.id === expectedId);
+            expect(match, `Expected vehicle ${expectedId} in list`).to.not.be.undefined;
+            expect(match.vin).to.equal("1FUJGHDV0CLBP8899");
+          }
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Paginated list of vehicles.
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Available
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: InMaintenance
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: OutOfService
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: Retired
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: type
+          value: Van
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: BoxTruck
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: SemiTractor
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: RefrigeratedTruck
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: Flatbed
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: minCapacityKg
+          value: "0"
+          type: query
+          description: Filter vehicles having at least the specified payload capacity in kilograms.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "items": [
+              {
+                "id": "4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+                "vin": "1FUJGHDV0CLBP8899",
+                "licensePlate": "IL-LOG-4021",
+                "make": "Freightliner",
+                "model": "Cascadia",
+                "year": 2024,
+                "type": "Van",
+                "capacityKg": 18000,
+                "capacityVolumeM3": 85.5,
+                "status": "Available",
+                "createdAt": "2026-10-27T18:30:00Z",
+                "updatedAt": "2026-10-27T18:30:00Z"
+              }
+            ],
+            "nextPageToken": "eyJvZmZzZXQiOjI1fQ==",
+            "totalCount": 1
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Available
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: InMaintenance
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: OutOfService
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: Retired
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: type
+          value: Van
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: BoxTruck
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: SemiTractor
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: RefrigeratedTruck
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: Flatbed
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: minCapacityKg
+          value: "0"
+          type: query
+          description: Filter vehicles having at least the specified payload capacity in kilograms.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Available
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: InMaintenance
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: OutOfService
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: status
+          value: Retired
+          type: query
+          description: Filter vehicles by operational status.
+          disabled: true
+        - name: type
+          value: Van
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: BoxTruck
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: SemiTractor
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: RefrigeratedTruck
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: type
+          value: Flatbed
+          type: query
+          description: Filter vehicles by classification type.
+          disabled: true
+        - name: minCapacityKg
+          value: "0"
+          type: query
+          description: Filter vehicles having at least the specified payload capacity in kilograms.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Retrieves a paginated list of vehicles, with optional filtering by operational status, vehicle type, minimum payload capacity, or free-text search.

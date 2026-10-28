@@ -1,0 +1,338 @@
+info:
+  name: List routes
+  type: http
+  seq: 2
+  tags:
+    - Routes
+
+http:
+  method: GET
+  url: "{{baseUrl}}/routes"
+  params:
+    - name: pageSize
+      value: "25"
+      type: query
+      description: Maximum number of items to return per page (default 25, max 100).
+    - name: pageToken
+      value: ""
+      type: query
+      description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+      disabled: true
+    - name: orderBy
+      value: ""
+      type: query
+      description: Sort expression (e.g., `createdAt desc`, `name asc`).
+      disabled: true
+    - name: status
+      value: Draft
+      type: query
+      description: Filter routes by lifecycle status.
+      disabled: true
+    - name: status
+      value: Active
+      type: query
+      description: Filter routes by lifecycle status.
+      disabled: true
+    - name: status
+      value: Archived
+      type: query
+      description: Filter routes by lifecycle status.
+      disabled: true
+    - name: search
+      value: ""
+      type: query
+      description: Case-insensitive free-text filter applied across key identifying fields.
+      disabled: true
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.body.items
+      operator: isArray
+    - expression: res.body.totalCount
+      operator: gte
+      value: "1"
+  scripts:
+    - type: tests
+      code: |-
+        const waypointSchema = {
+          type: "object",
+          required: ["sequenceNumber", "label", "latitude", "longitude", "stopType"],
+          properties: {
+            sequenceNumber: { type: "integer", minimum: 1 },
+            label: { type: "string", minLength: 1, maxLength: 120 },
+            address: { type: ["string", "null"], maxLength: 250 },
+            latitude: { type: "number", minimum: -90, maximum: 90 },
+            longitude: { type: "number", minimum: -180, maximum: 180 },
+            stopType: { type: "string", enum: ["Origin", "Pickup", "Delivery", "Waypoint", "Destination"] },
+            dwellTimeMinutes: { type: "integer", minimum: 0 }
+          }
+        };
+
+        const routeListSchema = {
+          type: "object",
+          required: ["items", "totalCount"],
+          properties: {
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["id", "code", "name", "status", "waypoints", "createdAt", "updatedAt"],
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  code: { type: "string", minLength: 2, maxLength: 32, pattern: "^[A-Z0-9-]+$" },
+                  name: { type: "string", minLength: 1, maxLength: 120 },
+                  description: { type: ["string", "null"], maxLength: 500 },
+                  status: { type: "string", enum: ["Draft", "Active", "Archived"] },
+                  estimatedDistanceKm: { type: ["number", "null"], minimum: 0 },
+                  estimatedDurationMinutes: { type: ["integer", "null"], minimum: 0 },
+                  waypoints: { type: "array", minItems: 2, items: waypointSchema },
+                  createdAt: { type: "string", format: "date-time" },
+                  updatedAt: { type: "string", format: "date-time" }
+                }
+              }
+            },
+            nextPageToken: { type: ["string", "null"] },
+            totalCount: { type: "integer", minimum: 0 }
+          }
+        };
+
+        test("GET /routes returns 200 OK with JSON content", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+        });
+
+        test("GET /routes response conforms to OpenAPI RouteListResponse schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(routeListSchema);
+        });
+
+        test("GET /routes includes the created route in paginated items", function () {
+          const body = res.getBody();
+          const expectedId = bru.getVar("routeId") || bru.getEnvVar("routeId");
+          expect(body.items.length).to.be.at.least(1);
+          expect(body.totalCount).to.be.at.least(body.items.length);
+          if (expectedId) {
+            const match = body.items.find((r) => r.id === expectedId);
+            expect(match, `Expected route ${expectedId} in list`).to.not.be.undefined;
+            expect(match.code).to.equal("RTE-MW-101");
+          }
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Paginated list of routes.
+    request:
+      url: "{{baseUrl}}/routes"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Draft
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: status
+          value: Active
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: status
+          value: Archived
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "items": [
+              {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "code": "RTE-MW-101",
+                "name": "Chicago O'Hare to Downtown Distribution Loop",
+                "description": "Morning primary freight corridor with one intermediate drop.",
+                "status": "Draft",
+                "estimatedDistanceKm": 34.8,
+                "estimatedDurationMinutes": 55,
+                "waypoints": [
+                  {
+                    "sequenceNumber": 1,
+                    "label": "O'Hare Regional Hub",
+                    "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                    "latitude": 41.9742,
+                    "longitude": -87.9073,
+                    "stopType": "Origin",
+                    "dwellTimeMinutes": 20
+                  }
+                ],
+                "createdAt": "2026-10-27T18:40:00Z",
+                "updatedAt": "2026-10-27T18:40:00Z"
+              }
+            ],
+            "nextPageToken": null,
+            "totalCount": 1
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/routes"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Draft
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: status
+          value: Active
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: status
+          value: Archived
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/routes"
+      method: GET
+      params:
+        - name: pageSize
+          value: "25"
+          type: query
+          description: Maximum number of items to return per page (default 25, max 100).
+        - name: pageToken
+          value: ""
+          type: query
+          description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+          disabled: true
+        - name: orderBy
+          value: ""
+          type: query
+          description: Sort expression (e.g., `createdAt desc`, `name asc`).
+          disabled: true
+        - name: status
+          value: Draft
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: status
+          value: Active
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: status
+          value: Archived
+          type: query
+          description: Filter routes by lifecycle status.
+          disabled: true
+        - name: search
+          value: ""
+          type: query
+          description: Case-insensitive free-text filter applied across key identifying fields.
+          disabled: true
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Retrieves a paginated list of routes, with optional filtering by lifecycle status or search query against route code and name.

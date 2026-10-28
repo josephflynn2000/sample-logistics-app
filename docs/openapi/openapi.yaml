@@ -1,0 +1,1811 @@
+openapi: 3.2.1
+info:
+  title: Logistics Management REST API
+  version: 1.0.0
+  description: |
+    RESTful HTTP API for logistics analysts to register and manage core fleet and transit resources:
+    - **Vehicles**: Fleet vehicles, payload capacities, and operational statuses.
+    - **Drivers**: Driver personnel records, commercial license classifications, and availability statuses.
+    - **Routes**: Transit and delivery routes composed of an ordered sequence of geographic waypoints.
+
+    ### REST Design Principles
+    This API follows:
+    - **Core REST Principles**: Resource-oriented plural nouns, standard HTTP method semantics (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`), statelessness, and hypermedia/location headers.
+    - **Microsoft Azure REST API Guidelines**: Explicit URI path versioning (`/v1`), optimistic concurrency control via `ETag` and `If-Match` headers, `Idempotency-Key` support for safe retries on `POST`, and standardized `application/problem+json` error payloads.
+    - **Google Cloud API Design Guide (AIPs)**: Token-based pagination (`pageSize`, `pageToken`, `nextPageToken`, `totalCount`), standard collection filtering (`status`, `search`), and consistent resource lifecycle timestamps (`createdAt`, `updatedAt`).
+  contact:
+    name: Logistics Platform Team
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+tags:
+  - name: Vehicles
+    description: Operations for registering and managing fleet vehicles.
+  - name: Drivers
+    description: Operations for registering and managing drivers and commercial license details.
+  - name: Routes
+    description: Operations for defining and managing transit/delivery routes and their ordered waypoints.
+
+paths:
+  /vehicles:
+    post:
+      tags:
+        - Vehicles
+      summary: Register a new vehicle
+      description: Creates a new vehicle record in the fleet registry. Returns `201 Created` with a `Location` header pointing to the new resource URI and an `ETag` header for optimistic concurrency control.
+      operationId: Vehicles_Create
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleRequest"
+            example:
+              vin: 1FUJGHDV0CLBP8899
+              licensePlate: IL-LOG-4021
+              make: Freightliner
+              model: Cascadia
+              year: 2024
+              type: SemiTractor
+              capacityKg: 18000
+              capacityVolumeM3: 85.5
+              status: Available
+      responses:
+        "201":
+          description: Vehicle successfully registered.
+          headers:
+            Location:
+              $ref: "#/components/headers/LocationHeader"
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    get:
+      tags:
+        - Vehicles
+      summary: List vehicles
+      description: Retrieves a paginated list of vehicles, with optional filtering by operational status, vehicle type, minimum payload capacity, or free-text search.
+      operationId: Vehicles_List
+      parameters:
+        - $ref: "#/components/parameters/PageSizeQuery"
+        - $ref: "#/components/parameters/PageTokenQuery"
+        - $ref: "#/components/parameters/OrderByQuery"
+        - name: status
+          in: query
+          description: Filter vehicles by operational status.
+          required: false
+          schema:
+            $ref: "#/components/schemas/VehicleStatus"
+        - name: type
+          in: query
+          description: Filter vehicles by classification type.
+          required: false
+          schema:
+            $ref: "#/components/schemas/VehicleType"
+        - name: minCapacityKg
+          in: query
+          description: Filter vehicles having at least the specified payload capacity in kilograms.
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: 0
+        - $ref: "#/components/parameters/SearchQuery"
+      responses:
+        "200":
+          description: Paginated list of vehicles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+  /vehicles/{vehicleId}:
+    parameters:
+      - $ref: "#/components/parameters/VehicleIdPath"
+
+    get:
+      tags:
+        - Vehicles
+      summary: Get a vehicle by ID
+      description: Retrieves the full details of a specific vehicle by its unique identifier.
+      operationId: Vehicles_Get
+      responses:
+        "200":
+          description: Vehicle details retrieved successfully.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    put:
+      tags:
+        - Vehicles
+      summary: Replace a vehicle
+      description: Performs a full replacement of an existing vehicle record. Clients may supply an `If-Match` header with the resource's current `ETag` to prevent lost updates.
+      operationId: Vehicles_Replace
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleRequest"
+            example:
+              vin: 1FUJGHDV0CLBP8899
+              licensePlate: IL-LOG-4021
+              make: Freightliner
+              model: Cascadia
+              year: 2024
+              type: SemiTractor
+              capacityKg: 18500
+              capacityVolumeM3: 85.5
+              status: Available
+      responses:
+        "200":
+          description: Vehicle successfully replaced.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    patch:
+      tags:
+        - Vehicles
+      summary: Partially update a vehicle
+      description: Applies a partial update to an existing vehicle using JSON Merge Patch (RFC 7396) semantics. Only provided fields are modified.
+      operationId: Vehicles_Update
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/PatchVehicleRequest"
+            example:
+              status: InMaintenance
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchVehicleRequest"
+            example:
+              status: InMaintenance
+      responses:
+        "200":
+          description: Vehicle successfully updated.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    delete:
+      tags:
+        - Vehicles
+      summary: Delete a vehicle
+      description: Permanently removes a vehicle record from the registry.
+      operationId: Vehicles_Delete
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      responses:
+        "204":
+          description: Vehicle deleted successfully (no content).
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+  /drivers:
+    post:
+      tags:
+        - Drivers
+      summary: Register a new driver
+      description: Creates a new driver record. Returns `201 Created` with `Location` and `ETag` headers.
+      operationId: Drivers_Create
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDriverRequest"
+            example:
+              employeeNumber: EMP-10482
+              firstName: Elena
+              lastName: Rostova
+              email: elena.rostova@example.com
+              phone: "+13125550194"
+              licenseNumber: R620-2109-8451
+              licenseClass: ClassA
+              licenseExpiryDate: "2028-09-30"
+              status: Active
+      responses:
+        "201":
+          description: Driver successfully registered.
+          headers:
+            Location:
+              $ref: "#/components/headers/LocationHeader"
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    get:
+      tags:
+        - Drivers
+      summary: List drivers
+      description: Retrieves a paginated list of drivers, with optional filtering by status, commercial license class, or search query.
+      operationId: Drivers_List
+      parameters:
+        - $ref: "#/components/parameters/PageSizeQuery"
+        - $ref: "#/components/parameters/PageTokenQuery"
+        - $ref: "#/components/parameters/OrderByQuery"
+        - name: status
+          in: query
+          description: Filter drivers by current availability/employment status.
+          required: false
+          schema:
+            $ref: "#/components/schemas/DriverStatus"
+        - name: licenseClass
+          in: query
+          description: Filter drivers by commercial driver's license classification.
+          required: false
+          schema:
+            $ref: "#/components/schemas/LicenseClass"
+        - $ref: "#/components/parameters/SearchQuery"
+      responses:
+        "200":
+          description: Paginated list of drivers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriverListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+  /drivers/{driverId}:
+    parameters:
+      - $ref: "#/components/parameters/DriverIdPath"
+
+    get:
+      tags:
+        - Drivers
+      summary: Get a driver by ID
+      description: Retrieves the full details of a specific driver by their unique identifier.
+      operationId: Drivers_Get
+      responses:
+        "200":
+          description: Driver details retrieved successfully.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    put:
+      tags:
+        - Drivers
+      summary: Replace a driver
+      description: Performs a full replacement of an existing driver record.
+      operationId: Drivers_Replace
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDriverRequest"
+            example:
+              employeeNumber: EMP-10482
+              firstName: Elena
+              lastName: Rostova
+              email: elena.rostova@example.com
+              phone: "+13125550199"
+              licenseNumber: R620-2109-8451
+              licenseClass: ClassA
+              licenseExpiryDate: "2029-09-30"
+              status: Active
+      responses:
+        "200":
+          description: Driver successfully replaced.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    patch:
+      tags:
+        - Drivers
+      summary: Partially update a driver
+      description: Applies a partial update to an existing driver record using JSON Merge Patch (RFC 7396) semantics.
+      operationId: Drivers_Update
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/PatchDriverRequest"
+            example:
+              status: OnLeave
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchDriverRequest"
+            example:
+              status: OnLeave
+      responses:
+        "200":
+          description: Driver successfully updated.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    delete:
+      tags:
+        - Drivers
+      summary: Delete a driver
+      description: Permanently removes a driver record from the registry.
+      operationId: Drivers_Delete
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      responses:
+        "204":
+          description: Driver deleted successfully (no content).
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+  /routes:
+    post:
+      tags:
+        - Routes
+      summary: Create a new route
+      description: |
+        Registers a new transit or delivery route along with its ordered sequence of geographic waypoints (`waypoints`).
+        Returns `201 Created` with `Location` and `ETag` headers.
+      operationId: Routes_Create
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRouteRequest"
+            example:
+              code: RTE-MW-101
+              name: Chicago O'Hare to Downtown Distribution Loop
+              description: Morning primary freight corridor with one intermediate drop.
+              status: Active
+              estimatedDistanceKm: 34.8
+              estimatedDurationMinutes: 55
+              waypoints:
+                - sequenceNumber: 1
+                  label: O'Hare Regional Hub
+                  address: 10000 W O'Hare Ave, Chicago, IL 60666
+                  latitude: 41.9742
+                  longitude: -87.9073
+                  stopType: Origin
+                  dwellTimeMinutes: 20
+                - sequenceNumber: 2
+                  label: West Loop Cross-Dock
+                  address: 800 W Fulton Market, Chicago, IL 60607
+                  latitude: 41.8868
+                  longitude: -87.6476
+                  stopType: Delivery
+                  dwellTimeMinutes: 15
+                - sequenceNumber: 3
+                  label: South Loop Fulfillment Center
+                  address: 1600 S State St, Chicago, IL 60616
+                  latitude: 41.8601
+                  longitude: -87.6272
+                  stopType: Destination
+                  dwellTimeMinutes: 20
+      responses:
+        "201":
+          description: Route successfully created.
+          headers:
+            Location:
+              $ref: "#/components/headers/LocationHeader"
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    get:
+      tags:
+        - Routes
+      summary: List routes
+      description: Retrieves a paginated list of routes, with optional filtering by lifecycle status or search query against route code and name.
+      operationId: Routes_List
+      parameters:
+        - $ref: "#/components/parameters/PageSizeQuery"
+        - $ref: "#/components/parameters/PageTokenQuery"
+        - $ref: "#/components/parameters/OrderByQuery"
+        - name: status
+          in: query
+          description: Filter routes by lifecycle status.
+          required: false
+          schema:
+            $ref: "#/components/schemas/RouteStatus"
+        - $ref: "#/components/parameters/SearchQuery"
+      responses:
+        "200":
+          description: Paginated list of routes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouteListResponse"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+  /routes/{routeId}:
+    parameters:
+      - $ref: "#/components/parameters/RouteIdPath"
+
+    get:
+      tags:
+        - Routes
+      summary: Get a route by ID
+      description: Retrieves the full details of a route, including its ordered list of waypoints.
+      operationId: Routes_Get
+      responses:
+        "200":
+          description: Route details retrieved successfully.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    put:
+      tags:
+        - Routes
+      summary: Replace a route
+      description: Performs a full replacement of an existing route and its embedded waypoints.
+      operationId: Routes_Replace
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRouteRequest"
+            example:
+              code: RTE-MW-101
+              name: Chicago O'Hare to Downtown Distribution Loop
+              description: Updated morning freight corridor.
+              status: Active
+              estimatedDistanceKm: 36.2
+              estimatedDurationMinutes: 60
+              waypoints:
+                - sequenceNumber: 1
+                  label: O'Hare Regional Hub
+                  address: 10000 W O'Hare Ave, Chicago, IL 60666
+                  latitude: 41.9742
+                  longitude: -87.9073
+                  stopType: Origin
+                  dwellTimeMinutes: 20
+                - sequenceNumber: 2
+                  label: South Loop Fulfillment Center
+                  address: 1600 S State St, Chicago, IL 60616
+                  latitude: 41.8601
+                  longitude: -87.6272
+                  stopType: Destination
+                  dwellTimeMinutes: 25
+      responses:
+        "200":
+          description: Route successfully replaced.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    patch:
+      tags:
+        - Routes
+      summary: Partially update a route
+      description: Applies a partial update to an existing route's metadata or waypoints using JSON Merge Patch (RFC 7396) semantics.
+      operationId: Routes_Update
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/PatchRouteRequest"
+            example:
+              status: Archived
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchRouteRequest"
+            example:
+              status: Archived
+      responses:
+        "200":
+          description: Route successfully updated.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    delete:
+      tags:
+        - Routes
+      summary: Delete a route
+      description: Permanently removes a route from the registry.
+      operationId: Routes_Delete
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      responses:
+        "204":
+          description: Route deleted successfully (no content).
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+  /routes/{routeId}/waypoints:
+    parameters:
+      - $ref: "#/components/parameters/RouteIdPath"
+
+    get:
+      tags:
+        - Routes
+      summary: Get ordered waypoints for a route
+      description: Retrieves the ordered sequence of geographic waypoints for a specific route.
+      operationId: Routes_GetWaypoints
+      responses:
+        "200":
+          description: Ordered list of route waypoints retrieved successfully.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouteWaypointsResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+    put:
+      tags:
+        - Routes
+      summary: Replace ordered waypoints for a route
+      description: Atomically replaces the entire ordered sequence of waypoints for a specific route.
+      operationId: Routes_ReplaceWaypoints
+      parameters:
+        - $ref: "#/components/parameters/IfMatchHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceWaypointsRequest"
+      responses:
+        "200":
+          description: Route waypoints successfully replaced.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETagHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RouteWaypointsResponse"
+        "400":
+          $ref: "#/components/responses/ValidationErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "412":
+          $ref: "#/components/responses/PreconditionFailedErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+
+components:
+  parameters:
+    VehicleIdPath:
+      name: vehicleId
+      in: path
+      required: true
+      description: Unique identifier (UUID) of the vehicle.
+      schema:
+        type: string
+        format: uuid
+
+    DriverIdPath:
+      name: driverId
+      in: path
+      required: true
+      description: Unique identifier (UUID) of the driver.
+      schema:
+        type: string
+        format: uuid
+
+    RouteIdPath:
+      name: routeId
+      in: path
+      required: true
+      description: Unique identifier (UUID) of the route.
+      schema:
+        type: string
+        format: uuid
+
+    PageSizeQuery:
+      name: pageSize
+      in: query
+      required: false
+      description: Maximum number of items to return per page (default 25, max 100).
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 25
+
+    PageTokenQuery:
+      name: pageToken
+      in: query
+      required: false
+      description: Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.
+      schema:
+        type: string
+
+    OrderByQuery:
+      name: orderBy
+      in: query
+      required: false
+      description: Sort expression (e.g., `createdAt desc`, `name asc`).
+      schema:
+        type: string
+
+    SearchQuery:
+      name: search
+      in: query
+      required: false
+      description: Case-insensitive free-text filter applied across key identifying fields.
+      schema:
+        type: string
+        maxLength: 100
+
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+      schema:
+        type: string
+        format: uuid
+
+    IfMatchHeader:
+      name: If-Match
+      in: header
+      required: false
+      description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+      schema:
+        type: string
+
+  headers:
+    LocationHeader:
+      description: Canonical URI of the newly created resource.
+      schema:
+        type: string
+        format: uri
+      example: /v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f
+
+    ETagHeader:
+      description: Opaque entity tag representing the current version of the resource for optimistic concurrency control.
+      schema:
+        type: string
+      example: '"v1-8f14e45fceea167a"'
+
+  responses:
+    ValidationErrorResponse:
+      description: Request validation failed (`400 Bad Request`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: https://problems-registry.smartbear.com/validation-error/
+            title: Validation Error
+            status: 400
+            detail: The request is not valid.
+            instance: /v1/vehicles
+            code: 400-02
+            errors:
+              - detail: The VIN must be exactly 17 alphanumeric characters.
+                pointer: "#/vin"
+              - detail: Payload capacity must be greater than 0.
+                pointer: "#/capacityKg"
+
+    NotFoundErrorResponse:
+      description: The requested resource was not found (`404 Not Found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: https://problems-registry.smartbear.com/not-found/
+            title: Not Found
+            status: 404
+            detail: The requested resource was not found.
+            instance: /v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f
+            code: 404-01
+
+    ConflictErrorResponse:
+      description: A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: https://problems-registry.smartbear.com/already-exists/
+            title: Already exists
+            status: 409
+            detail: The resource being created already exists.
+            instance: /v1/vehicles
+            code: 409-01
+
+    PreconditionFailedErrorResponse:
+      description: The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: https://problems-registry.smartbear.com/business-rule-violation/
+            title: Business Rule Violation
+            status: 412
+            detail: The resource ETag does not match the provided If-Match header value.
+            instance: /v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f
+            code: 412-01
+
+    InternalServerErrorResponse:
+      description: An unexpected server error occurred (`500 Internal Server Error`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+          example:
+            type: https://problems-registry.smartbear.com/server-error/
+            title: Server Error
+            status: 500
+            detail: The server encountered an unexpected condition that prevented it from fulfilling the request.
+            instance: /v1/vehicles
+            code: 500-01
+
+  schemas:
+    # -------------------------------------------------------------------------
+    # Vehicle Schemas
+    # -------------------------------------------------------------------------
+    VehicleType:
+      type: string
+      description: Classification of the fleet vehicle.
+      enum:
+        - Van
+        - BoxTruck
+        - SemiTractor
+        - RefrigeratedTruck
+        - Flatbed
+
+    VehicleStatus:
+      type: string
+      description: Operational status of the vehicle.
+      enum:
+        - Available
+        - InMaintenance
+        - OutOfService
+        - Retired
+
+    Vehicle:
+      type: object
+      description: Represents a registered fleet vehicle.
+      required:
+        - id
+        - vin
+        - licensePlate
+        - make
+        - model
+        - year
+        - type
+        - capacityKg
+        - capacityVolumeM3
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-assigned unique identifier for the vehicle.
+          example: 4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f
+        vin:
+          type: string
+          minLength: 17
+          maxLength: 17
+          pattern: "^[A-HJ-NPR-Z0-9]{17}$"
+          description: Standard 17-character Vehicle Identification Number (excluding I, O, Q).
+          example: 1FUJGHDV0CLBP8899
+        licensePlate:
+          type: string
+          minLength: 2
+          maxLength: 20
+          description: State or regional registration license plate number.
+          example: IL-LOG-4021
+        make:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Vehicle manufacturer name.
+          example: Freightliner
+        model:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Vehicle model name.
+          example: Cascadia
+        year:
+          type: integer
+          format: int32
+          minimum: 1990
+          maximum: 2100
+          description: Manufacturing model year.
+          example: 2024
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        capacityKg:
+          type: number
+          format: double
+          minimum: 1
+          description: Maximum payload weight capacity in kilograms.
+          example: 18000
+        capacityVolumeM3:
+          type: number
+          format: double
+          minimum: 0.1
+          description: Maximum cargo volume capacity in cubic meters.
+          example: 85.5
+        status:
+          $ref: "#/components/schemas/VehicleStatus"
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: UTC timestamp when the vehicle was registered.
+          example: "2026-10-27T18:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: UTC timestamp when the vehicle record was last modified.
+          example: "2026-10-27T18:30:00Z"
+
+    CreateVehicleRequest:
+      type: object
+      description: Payload for registering a new vehicle.
+      required:
+        - vin
+        - licensePlate
+        - make
+        - model
+        - year
+        - type
+        - capacityKg
+        - capacityVolumeM3
+      properties:
+        vin:
+          type: string
+          minLength: 17
+          maxLength: 17
+          pattern: "^[A-HJ-NPR-Z0-9]{17}$"
+          description: Standard 17-character Vehicle Identification Number.
+        licensePlate:
+          type: string
+          minLength: 2
+          maxLength: 20
+          description: State or regional registration license plate number.
+        make:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Vehicle manufacturer name.
+        model:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Vehicle model name.
+        year:
+          type: integer
+          format: int32
+          minimum: 1990
+          maximum: 2100
+          description: Manufacturing model year.
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        capacityKg:
+          type: number
+          format: double
+          minimum: 1
+          description: Maximum payload weight capacity in kilograms.
+        capacityVolumeM3:
+          type: number
+          format: double
+          minimum: 0.1
+          description: Maximum cargo volume capacity in cubic meters.
+        status:
+          $ref: "#/components/schemas/VehicleStatus"
+
+    UpdateVehicleRequest:
+      type: object
+      description: Payload for full replacement (`PUT`) of an existing vehicle record.
+      required:
+        - vin
+        - licensePlate
+        - make
+        - model
+        - year
+        - type
+        - capacityKg
+        - capacityVolumeM3
+        - status
+      properties:
+        vin:
+          type: string
+          minLength: 17
+          maxLength: 17
+          pattern: "^[A-HJ-NPR-Z0-9]{17}$"
+        licensePlate:
+          type: string
+          minLength: 2
+          maxLength: 20
+        make:
+          type: string
+          minLength: 1
+          maxLength: 60
+        model:
+          type: string
+          minLength: 1
+          maxLength: 60
+        year:
+          type: integer
+          format: int32
+          minimum: 1990
+          maximum: 2100
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        capacityKg:
+          type: number
+          format: double
+          minimum: 1
+        capacityVolumeM3:
+          type: number
+          format: double
+          minimum: 0.1
+        status:
+          $ref: "#/components/schemas/VehicleStatus"
+
+    PatchVehicleRequest:
+      type: object
+      description: Payload for partial update (`PATCH`) of a vehicle record. Only supplied fields are updated.
+      properties:
+        licensePlate:
+          type: string
+          minLength: 2
+          maxLength: 20
+        make:
+          type: string
+          minLength: 1
+          maxLength: 60
+        model:
+          type: string
+          minLength: 1
+          maxLength: 60
+        year:
+          type: integer
+          format: int32
+          minimum: 1990
+          maximum: 2100
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        capacityKg:
+          type: number
+          format: double
+          minimum: 1
+        capacityVolumeM3:
+          type: number
+          format: double
+          minimum: 0.1
+        status:
+          $ref: "#/components/schemas/VehicleStatus"
+
+    VehicleListResponse:
+      type: object
+      description: Paginated collection response for vehicles.
+      required:
+        - items
+        - totalCount
+      properties:
+        items:
+          type: array
+          description: Page of vehicle resources matching the query criteria.
+          items:
+            $ref: "#/components/schemas/Vehicle"
+        nextPageToken:
+          type: string
+          nullable: true
+          description: Continuation token to retrieve the next page of results, or `null` if on the last page.
+          example: eyJvZmZzZXQiOjI1fQ==
+        totalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total number of vehicles matching the filter criteria.
+          example: 1
+
+    # -------------------------------------------------------------------------
+    # Driver Schemas
+    # -------------------------------------------------------------------------
+    LicenseClass:
+      type: string
+      description: Commercial Driver's License (CDL) or standard license classification.
+      enum:
+        - ClassA
+        - ClassB
+        - ClassC
+        - Standard
+
+    DriverStatus:
+      type: string
+      description: Operational availability status of the driver.
+      enum:
+        - Active
+        - Inactive
+        - OnLeave
+        - Suspended
+
+    Driver:
+      type: object
+      description: Represents a registered driver in the logistics organization.
+      required:
+        - id
+        - employeeNumber
+        - firstName
+        - lastName
+        - email
+        - phone
+        - licenseNumber
+        - licenseClass
+        - licenseExpiryDate
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-assigned unique identifier for the driver.
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+        employeeNumber:
+          type: string
+          minLength: 2
+          maxLength: 32
+          description: Organization-unique employee identifier.
+          example: EMP-10482
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Driver's given name.
+          example: Elena
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Driver's family name / surname.
+          example: Rostova
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Primary work email address.
+          example: elena.rostova@example.com
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+          description: Contact phone number in E.164 format.
+          example: "+13125550194"
+        licenseNumber:
+          type: string
+          minLength: 4
+          maxLength: 32
+          description: Government-issued driver's license number.
+          example: R620-2109-8451
+        licenseClass:
+          $ref: "#/components/schemas/LicenseClass"
+        licenseExpiryDate:
+          type: string
+          format: date
+          description: Expiration date of the driver's commercial license (`YYYY-MM-DD`).
+          example: "2028-09-30"
+        status:
+          $ref: "#/components/schemas/DriverStatus"
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: UTC timestamp when the driver was registered.
+          example: "2026-10-27T18:35:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: UTC timestamp when the driver record was last modified.
+          example: "2026-10-27T18:35:00Z"
+
+    CreateDriverRequest:
+      type: object
+      description: Payload for registering a new driver.
+      required:
+        - employeeNumber
+        - firstName
+        - lastName
+        - email
+        - phone
+        - licenseNumber
+        - licenseClass
+        - licenseExpiryDate
+      properties:
+        employeeNumber:
+          type: string
+          minLength: 2
+          maxLength: 32
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+        licenseNumber:
+          type: string
+          minLength: 4
+          maxLength: 32
+        licenseClass:
+          $ref: "#/components/schemas/LicenseClass"
+        licenseExpiryDate:
+          type: string
+          format: date
+        status:
+          $ref: "#/components/schemas/DriverStatus"
+
+    UpdateDriverRequest:
+      type: object
+      description: Payload for full replacement (`PUT`) of an existing driver record.
+      required:
+        - employeeNumber
+        - firstName
+        - lastName
+        - email
+        - phone
+        - licenseNumber
+        - licenseClass
+        - licenseExpiryDate
+        - status
+      properties:
+        employeeNumber:
+          type: string
+          minLength: 2
+          maxLength: 32
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+        licenseNumber:
+          type: string
+          minLength: 4
+          maxLength: 32
+        licenseClass:
+          $ref: "#/components/schemas/LicenseClass"
+        licenseExpiryDate:
+          type: string
+          format: date
+        status:
+          $ref: "#/components/schemas/DriverStatus"
+
+    PatchDriverRequest:
+      type: object
+      description: Payload for partial update (`PATCH`) of a driver record.
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+        licenseNumber:
+          type: string
+          minLength: 4
+          maxLength: 32
+        licenseClass:
+          $ref: "#/components/schemas/LicenseClass"
+        licenseExpiryDate:
+          type: string
+          format: date
+        status:
+          $ref: "#/components/schemas/DriverStatus"
+
+    DriverListResponse:
+      type: object
+      description: Paginated collection response for drivers.
+      required:
+        - items
+        - totalCount
+      properties:
+        items:
+          type: array
+          description: Page of driver resources matching the query criteria.
+          items:
+            $ref: "#/components/schemas/Driver"
+        nextPageToken:
+          type: string
+          nullable: true
+          description: Continuation token to retrieve the next page of results, or `null` if on the last page.
+          example: null
+        totalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total number of drivers matching the filter criteria.
+          example: 1
+
+    # -------------------------------------------------------------------------
+    # Route & Waypoint Schemas
+    # -------------------------------------------------------------------------
+    RouteStatus:
+      type: string
+      description: Lifecycle status of a transit/delivery route.
+      enum:
+        - Draft
+        - Active
+        - Archived
+
+    StopType:
+      type: string
+      description: Role of a geographic point within a route sequence.
+      enum:
+        - Origin
+        - Pickup
+        - Delivery
+        - Waypoint
+        - Destination
+
+    RouteWaypoint:
+      type: object
+      description: A single geographic point/stop within a route's ordered sequence.
+      required:
+        - sequenceNumber
+        - label
+        - latitude
+        - longitude
+        - stopType
+      properties:
+        sequenceNumber:
+          type: integer
+          format: int32
+          minimum: 1
+          description: 1-based ordinal position of the stop along the route (`1, 2, 3...`).
+          example: 1
+        label:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Human-readable name for the stop (e.g., warehouse or customer location name).
+          example: O'Hare Regional Hub
+        address:
+          type: string
+          maxLength: 250
+          nullable: true
+          description: Optional street address of the waypoint.
+          example: 10000 W O'Hare Ave, Chicago, IL 60666
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: WGS84 latitude in decimal degrees (`-90.0` to `90.0`).
+          example: 41.9742
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: WGS84 longitude in decimal degrees (`-180.0` to `180.0`).
+          example: -87.9073
+        stopType:
+          $ref: "#/components/schemas/StopType"
+        dwellTimeMinutes:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+          description: Expected time in minutes spent at this waypoint for loading, unloading, or inspection.
+          example: 20
+
+    Route:
+      type: object
+      description: Represents a transit or delivery route defined by an ordered sequence of waypoints.
+      required:
+        - id
+        - code
+        - name
+        - status
+        - waypoints
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-assigned unique identifier for the route.
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        code:
+          type: string
+          minLength: 2
+          maxLength: 32
+          pattern: "^[A-Z0-9-]+$"
+          description: Unique business code identifying the route (e.g., `RTE-MW-101`).
+          example: RTE-MW-101
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Descriptive name of the route.
+          example: Chicago O'Hare to Downtown Distribution Loop
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional operational notes or description for logistics analysts and dispatchers.
+          example: Morning primary freight corridor with one intermediate drop.
+        status:
+          $ref: "#/components/schemas/RouteStatus"
+        estimatedDistanceKm:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+          description: Estimated total travel distance in kilometers across all waypoints.
+          example: 34.8
+        estimatedDurationMinutes:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: Estimated total transit and dwell duration in minutes.
+          example: 55
+        waypoints:
+          type: array
+          minItems: 2
+          description: Ordered list of geographic waypoints (origin, intermediate stops, destination) that make up the route.
+          items:
+            $ref: "#/components/schemas/RouteWaypoint"
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: UTC timestamp when the route was created.
+          example: "2026-10-27T18:40:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: UTC timestamp when the route was last modified.
+          example: "2026-10-27T18:40:00Z"
+
+    CreateRouteRequest:
+      type: object
+      description: Payload for registering a new route with its ordered waypoints.
+      required:
+        - code
+        - name
+        - waypoints
+      properties:
+        code:
+          type: string
+          minLength: 2
+          maxLength: 32
+          pattern: "^[A-Z0-9-]+$"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        status:
+          $ref: "#/components/schemas/RouteStatus"
+        estimatedDistanceKm:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        estimatedDurationMinutes:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+        waypoints:
+          type: array
+          minItems: 2
+          description: Ordered sequence of at least 2 waypoints (e.g., `Origin` and `Destination`).
+          items:
+            $ref: "#/components/schemas/RouteWaypoint"
+
+    UpdateRouteRequest:
+      type: object
+      description: Payload for full replacement (`PUT`) of an existing route and its waypoints.
+      required:
+        - code
+        - name
+        - status
+        - waypoints
+      properties:
+        code:
+          type: string
+          minLength: 2
+          maxLength: 32
+          pattern: "^[A-Z0-9-]+$"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        status:
+          $ref: "#/components/schemas/RouteStatus"
+        estimatedDistanceKm:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        estimatedDurationMinutes:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+        waypoints:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/RouteWaypoint"
+
+    PatchRouteRequest:
+      type: object
+      description: Payload for partial update (`PATCH`) of a route.
+      properties:
+        code:
+          type: string
+          minLength: 2
+          maxLength: 32
+          pattern: "^[A-Z0-9-]+$"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        status:
+          $ref: "#/components/schemas/RouteStatus"
+        estimatedDistanceKm:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+        estimatedDurationMinutes:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+        waypoints:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/RouteWaypoint"
+
+    ReplaceWaypointsRequest:
+      type: object
+      description: Payload for replacing the ordered waypoints of a route via `/routes/{routeId}/waypoints`.
+      required:
+        - waypoints
+      properties:
+        waypoints:
+          type: array
+          minItems: 2
+          description: Complete ordered sequence of waypoints to set on the route.
+          items:
+            $ref: "#/components/schemas/RouteWaypoint"
+
+    RouteWaypointsResponse:
+      type: object
+      description: Response wrapper containing the route identifier and its ordered waypoints.
+      required:
+        - routeId
+        - waypoints
+      properties:
+        routeId:
+          type: string
+          format: uuid
+          description: Unique identifier of the route.
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteWaypoint"
+
+    RouteListResponse:
+      type: object
+      description: Paginated collection response for routes.
+      required:
+        - items
+        - totalCount
+      properties:
+        items:
+          type: array
+          description: Page of route resources matching the query criteria.
+          items:
+            $ref: "#/components/schemas/Route"
+        nextPageToken:
+          type: string
+          nullable: true
+          description: Continuation token to retrieve the next page of results, or `null` if on the last page.
+          example: null
+        totalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total number of routes matching the filter criteria.
+          example: 1
+
+    # -------------------------------------------------------------------------
+    # Standard Error Schemas (RFC 9457 / SmartBear Problem Details Registry)
+    # -------------------------------------------------------------------------
+    ProblemErrorItem:
+      type: object
+      description: Granular validation or parameter error entry within a Problem Details response.
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: A human-readable explanation of the specific validation error.
+          example: The VIN must be exactly 17 alphanumeric characters.
+        pointer:
+          type: string
+          description: A JSON Pointer (RFC 6901) locating the offending property in the request body (e.g., `#/vin` or `#/waypoints/0/latitude`).
+          example: "#/vin"
+        parameter:
+          type: string
+          description: The name of the offending query, path, or header parameter if the error is not in the request body.
+          example: pageSize
+
+    ProblemDetails:
+      type: object
+      description: |
+        RFC 9457 Problem Details for HTTP APIs (`application/problem+json`) using standard types from https://problems-registry.smartbear.com/.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+          description: A URI reference from the Problem Details Registry that identifies the problem type.
+          example: https://problems-registry.smartbear.com/already-exists/
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code generated by the origin server for this occurrence of the problem.
+          example: 409
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+          example: Already exists
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+          example: The resource being created already exists.
+        instance:
+          type: string
+          format: uri-reference
+          description: A URI reference that identifies the specific occurrence of the problem.
+          example: /v1/vehicles
+        code:
+          type: string
+          description: Optional provider-specific error code for categorizing the problem occurrence.
+          example: 409-01
+        errors:
+          type: array
+          description: Optional extension array providing granular validation or field-level error details.
+          items:
+            $ref: "#/components/schemas/ProblemErrorItem"

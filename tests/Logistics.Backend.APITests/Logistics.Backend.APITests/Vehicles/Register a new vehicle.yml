@@ -1,0 +1,316 @@
+info:
+  name: Register a new vehicle
+  type: http
+  seq: 1
+  tags:
+    - Vehicles
+
+http:
+  method: POST
+  url: "{{baseUrl}}/vehicles"
+  headers:
+    - name: Idempotency-Key
+      value: "{{vehicleIdempotencyKey}}"
+      description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+  body:
+    type: json
+    data: |-
+      {
+        "vin": "1FUJGHDV0CLBP8899",
+        "licensePlate": "IL-LOG-4021",
+        "make": "Freightliner",
+        "model": "Cascadia",
+        "year": 2024,
+        "type": "SemiTractor",
+        "capacityKg": 18000,
+        "capacityVolumeM3": 85.5,
+        "status": "Available"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['location']
+      operator: contains
+      value: /vehicles/
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: isString
+    - expression: res.body.vin
+      operator: eq
+      value: 1FUJGHDV0CLBP8899
+    - expression: res.body.licensePlate
+      operator: eq
+      value: IL-LOG-4021
+    - expression: res.body.status
+      operator: eq
+      value: Available
+  scripts:
+    - type: before-request
+      code: |-
+        const { v4: uuidv4 } = require('uuid');
+        bru.setVar("vehicleIdempotencyKey", uuidv4());
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201 && res.getBody() && res.getBody().id) {
+          bru.setVar("vehicleId", res.getBody().id);
+        }
+        if (res.getHeader("etag")) {
+          bru.setVar("vehicleEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const vehicleSchema = {
+          type: "object",
+          required: [
+            "id",
+            "vin",
+            "licensePlate",
+            "make",
+            "model",
+            "year",
+            "type",
+            "capacityKg",
+            "capacityVolumeM3",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            vin: { type: "string", minLength: 17, maxLength: 17, pattern: "^[A-HJ-NPR-Z0-9]{17}$" },
+            licensePlate: { type: "string", minLength: 2, maxLength: 20 },
+            make: { type: "string", minLength: 1, maxLength: 60 },
+            model: { type: "string", minLength: 1, maxLength: 60 },
+            year: { type: "integer", minimum: 1990, maximum: 2100 },
+            type: { type: "string", enum: ["Van", "BoxTruck", "SemiTractor", "RefrigeratedTruck", "Flatbed"] },
+            capacityKg: { type: "number", minimum: 1 },
+            capacityVolumeM3: { type: "number", minimum: 0.1 },
+            status: { type: "string", enum: ["Available", "InMaintenance", "OutOfService", "Retired"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("POST /vehicles returns 201 Created with Location and ETag headers", function () {
+          expect(res.getStatus()).to.equal(201);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("location")).to.be.a("string").and.include(`/vehicles/${res.getBody().id}`);
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("POST /vehicles response conforms to OpenAPI Vehicle schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(vehicleSchema);
+        });
+
+        test("POST /vehicles persists submitted payload fields accurately", function () {
+          const body = res.getBody();
+          expect(body.vin).to.equal("1FUJGHDV0CLBP8899");
+          expect(body.licensePlate).to.equal("IL-LOG-4021");
+          expect(body.make).to.equal("Freightliner");
+          expect(body.model).to.equal("Cascadia");
+          expect(body.year).to.equal(2024);
+          expect(body.type).to.equal("SemiTractor");
+          expect(body.capacityKg).to.equal(18000);
+          expect(body.capacityVolumeM3).to.equal(85.5);
+          expect(body.status).to.equal("Available");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 201 Response
+    description: Vehicle successfully registered.
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 201
+      statusText: Created
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "Van",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available",
+            "createdAt": "2026-10-27T18:30:00Z",
+            "updatedAt": "2026-10-27T18:30:00Z"
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 409 Response
+    description: A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 409
+      statusText: Conflict
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/already-exists/",
+            "title": "Already exists",
+            "status": 409,
+            "detail": "The resource being created already exists.",
+            "instance": "/v1/vehicles",
+            "code": "409-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/vehicles"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Creates a new vehicle record in the fleet registry. Returns `201 Created` with a `Location` header pointing to the new resource URI and an `ETag` header for optimistic concurrency control.

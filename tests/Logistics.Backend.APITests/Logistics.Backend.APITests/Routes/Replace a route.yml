@@ -1,0 +1,545 @@
+info:
+  name: Replace a route
+  type: http
+  seq: 5
+  tags:
+    - Routes
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/routes/:routeId"
+  headers:
+    - name: If-Match
+      value: "{{routeEtag}}"
+      description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+  params:
+    - name: routeId
+      value: "{{routeId}}"
+      type: path
+      description: Unique identifier (UUID) of the route.
+  body:
+    type: json
+    data: |-
+      {
+        "code": "RTE-MW-101",
+        "name": "Chicago O'Hare to Downtown Distribution Loop",
+        "description": "Updated morning freight corridor.",
+        "status": "Active",
+        "estimatedDistanceKm": 36.2,
+        "estimatedDurationMinutes": 60,
+        "waypoints": [
+          {
+            "sequenceNumber": 1,
+            "label": "O'Hare Regional Hub",
+            "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+            "latitude": 41.9742,
+            "longitude": -87.9073,
+            "stopType": "Origin",
+            "dwellTimeMinutes": 20
+          },
+          {
+            "sequenceNumber": 2,
+            "label": "South Loop Fulfillment Center",
+            "address": "1600 S State St, Chicago, IL 60616",
+            "latitude": 41.8601,
+            "longitude": -87.6272,
+            "stopType": "Destination",
+            "dwellTimeMinutes": 25
+          }
+        ]
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: eq
+      value: "{{routeId}}"
+    - expression: res.body.estimatedDistanceKm
+      operator: eq
+      value: "36.2"
+    - expression: res.body.waypoints.length
+      operator: eq
+      value: "2"
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getHeader("etag")) {
+          bru.setVar("routeEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const waypointSchema = {
+          type: "object",
+          required: ["sequenceNumber", "label", "latitude", "longitude", "stopType"],
+          properties: {
+            sequenceNumber: { type: "integer", minimum: 1 },
+            label: { type: "string", minLength: 1, maxLength: 120 },
+            address: { type: ["string", "null"], maxLength: 250 },
+            latitude: { type: "number", minimum: -90, maximum: 90 },
+            longitude: { type: "number", minimum: -180, maximum: 180 },
+            stopType: { type: "string", enum: ["Origin", "Pickup", "Delivery", "Waypoint", "Destination"] },
+            dwellTimeMinutes: { type: "integer", minimum: 0 }
+          }
+        };
+
+        const routeSchema = {
+          type: "object",
+          required: ["id", "code", "name", "status", "waypoints", "createdAt", "updatedAt"],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            code: { type: "string", minLength: 2, maxLength: 32, pattern: "^[A-Z0-9-]+$" },
+            name: { type: "string", minLength: 1, maxLength: 120 },
+            description: { type: ["string", "null"], maxLength: 500 },
+            status: { type: "string", enum: ["Draft", "Active", "Archived"] },
+            estimatedDistanceKm: { type: ["number", "null"], minimum: 0 },
+            estimatedDurationMinutes: { type: ["integer", "null"], minimum: 0 },
+            waypoints: { type: "array", minItems: 2, items: waypointSchema },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("PUT /routes/:routeId returns 200 OK with updated ETag header", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("PUT /routes/:routeId response conforms to OpenAPI Route schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(routeSchema);
+        });
+
+        test("PUT /routes/:routeId replaces route metadata and embedded waypoints", function () {
+          const expectedId = bru.getVar("routeId") || bru.getEnvVar("routeId");
+          const body = res.getBody();
+          expect(body.id).to.equal(expectedId);
+          expect(body.description).to.equal("Updated morning freight corridor.");
+          expect(body.estimatedDistanceKm).to.equal(36.2);
+          expect(body.estimatedDurationMinutes).to.equal(60);
+          expect(body.waypoints).to.have.lengthOf(2);
+          expect(body.waypoints[0].sequenceNumber).to.equal(1);
+          expect(body.waypoints[1].sequenceNumber).to.equal(2);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Route successfully replaced.
+    request:
+      url: "{{baseUrl}}/routes/:routeId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Updated morning freight corridor.",
+            "status": "Active",
+            "estimatedDistanceKm": 36.2,
+            "estimatedDurationMinutes": 60,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 25
+              }
+            ]
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Morning primary freight corridor with one intermediate drop.",
+            "status": "Draft",
+            "estimatedDistanceKm": 34.8,
+            "estimatedDurationMinutes": 55,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              }
+            ],
+            "createdAt": "2026-10-27T18:40:00Z",
+            "updatedAt": "2026-10-27T18:40:00Z"
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/routes/:routeId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Updated morning freight corridor.",
+            "status": "Active",
+            "estimatedDistanceKm": 36.2,
+            "estimatedDurationMinutes": 60,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 25
+              }
+            ]
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 404 Response
+    description: The requested resource was not found (`404 Not Found`).
+    request:
+      url: "{{baseUrl}}/routes/:routeId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Updated morning freight corridor.",
+            "status": "Active",
+            "estimatedDistanceKm": 36.2,
+            "estimatedDurationMinutes": 60,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 25
+              }
+            ]
+          }
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/not-found/",
+            "title": "Not Found",
+            "status": 404,
+            "detail": "The requested resource was not found.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "404-01"
+          }
+  - name: 409 Response
+    description: A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).
+    request:
+      url: "{{baseUrl}}/routes/:routeId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Updated morning freight corridor.",
+            "status": "Active",
+            "estimatedDistanceKm": 36.2,
+            "estimatedDurationMinutes": 60,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 25
+              }
+            ]
+          }
+    response:
+      status: 409
+      statusText: Conflict
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/already-exists/",
+            "title": "Already exists",
+            "status": 409,
+            "detail": "The resource being created already exists.",
+            "instance": "/v1/vehicles",
+            "code": "409-01"
+          }
+  - name: 412 Response
+    description: The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.
+    request:
+      url: "{{baseUrl}}/routes/:routeId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Updated morning freight corridor.",
+            "status": "Active",
+            "estimatedDistanceKm": 36.2,
+            "estimatedDurationMinutes": 60,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 25
+              }
+            ]
+          }
+    response:
+      status: 412
+      statusText: Precondition Failed
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/business-rule-violation/",
+            "title": "Business Rule Violation",
+            "status": 412,
+            "detail": "The resource ETag does not match the provided If-Match header value.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "412-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/routes/:routeId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: routeId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the route.
+      body:
+        type: json
+        data: |-
+          {
+            "code": "RTE-MW-101",
+            "name": "Chicago O'Hare to Downtown Distribution Loop",
+            "description": "Updated morning freight corridor.",
+            "status": "Active",
+            "estimatedDistanceKm": 36.2,
+            "estimatedDurationMinutes": 60,
+            "waypoints": [
+              {
+                "sequenceNumber": 1,
+                "label": "O'Hare Regional Hub",
+                "address": "10000 W O'Hare Ave, Chicago, IL 60666",
+                "latitude": 41.9742,
+                "longitude": -87.9073,
+                "stopType": "Origin",
+                "dwellTimeMinutes": 20
+              },
+              {
+                "sequenceNumber": 2,
+                "label": "South Loop Fulfillment Center",
+                "address": "1600 S State St, Chicago, IL 60616",
+                "latitude": 41.8601,
+                "longitude": -87.6272,
+                "stopType": "Destination",
+                "dwellTimeMinutes": 25
+              }
+            ]
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Performs a full replacement of an existing route and its embedded waypoints.

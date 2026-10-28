@@ -1,0 +1,316 @@
+info:
+  name: Register a new driver
+  type: http
+  seq: 1
+  tags:
+    - Drivers
+
+http:
+  method: POST
+  url: "{{baseUrl}}/drivers"
+  headers:
+    - name: Idempotency-Key
+      value: "{{driverIdempotencyKey}}"
+      description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+  body:
+    type: json
+    data: |-
+      {
+        "employeeNumber": "EMP-10482",
+        "firstName": "Elena",
+        "lastName": "Rostova",
+        "email": "elena.rostova@example.com",
+        "phone": "+13125550194",
+        "licenseNumber": "R620-2109-8451",
+        "licenseClass": "ClassA",
+        "licenseExpiryDate": "2028-09-30",
+        "status": "Active"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['location']
+      operator: contains
+      value: /drivers/
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: isString
+    - expression: res.body.employeeNumber
+      operator: eq
+      value: EMP-10482
+    - expression: res.body.licenseClass
+      operator: eq
+      value: ClassA
+    - expression: res.body.status
+      operator: eq
+      value: Active
+  scripts:
+    - type: before-request
+      code: |-
+        const { v4: uuidv4 } = require('uuid');
+        bru.setVar("driverIdempotencyKey", uuidv4());
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201 && res.getBody() && res.getBody().id) {
+          bru.setVar("driverId", res.getBody().id);
+        }
+        if (res.getHeader("etag")) {
+          bru.setVar("driverEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const driverSchema = {
+          type: "object",
+          required: [
+            "id",
+            "employeeNumber",
+            "firstName",
+            "lastName",
+            "email",
+            "phone",
+            "licenseNumber",
+            "licenseClass",
+            "licenseExpiryDate",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            employeeNumber: { type: "string", minLength: 2, maxLength: 32 },
+            firstName: { type: "string", minLength: 1, maxLength: 80 },
+            lastName: { type: "string", minLength: 1, maxLength: 80 },
+            email: { type: "string", format: "email", maxLength: 254 },
+            phone: { type: "string", pattern: "^\\+?[1-9]\\d{1,14}$" },
+            licenseNumber: { type: "string", minLength: 4, maxLength: 32 },
+            licenseClass: { type: "string", enum: ["ClassA", "ClassB", "ClassC", "Standard"] },
+            licenseExpiryDate: { type: "string", format: "date" },
+            status: { type: "string", enum: ["Active", "Inactive", "OnLeave", "Suspended"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("POST /drivers returns 201 Created with Location and ETag headers", function () {
+          expect(res.getStatus()).to.equal(201);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("location")).to.be.a("string").and.include(`/drivers/${res.getBody().id}`);
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("POST /drivers response conforms to OpenAPI Driver schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(driverSchema);
+        });
+
+        test("POST /drivers persists submitted driver attributes accurately", function () {
+          const body = res.getBody();
+          expect(body.employeeNumber).to.equal("EMP-10482");
+          expect(body.firstName).to.equal("Elena");
+          expect(body.lastName).to.equal("Rostova");
+          expect(body.email).to.equal("elena.rostova@example.com");
+          expect(body.phone).to.equal("+13125550194");
+          expect(body.licenseNumber).to.equal("R620-2109-8451");
+          expect(body.licenseClass).to.equal("ClassA");
+          expect(body.licenseExpiryDate).to.equal("2028-09-30");
+          expect(body.status).to.equal("Active");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 201 Response
+    description: Driver successfully registered.
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "employeeNumber": "EMP-10482",
+            "firstName": "Elena",
+            "lastName": "Rostova",
+            "email": "elena.rostova@example.com",
+            "phone": "+13125550194",
+            "licenseNumber": "R620-2109-8451",
+            "licenseClass": "ClassA",
+            "licenseExpiryDate": "2028-09-30",
+            "status": "Active"
+          }
+    response:
+      status: 201
+      statusText: Created
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+            "employeeNumber": "EMP-10482",
+            "firstName": "Elena",
+            "lastName": "Rostova",
+            "email": "elena.rostova@example.com",
+            "phone": "+13125550194",
+            "licenseNumber": "R620-2109-8451",
+            "licenseClass": "ClassA",
+            "licenseExpiryDate": "2028-09-30",
+            "status": "Active",
+            "createdAt": "2026-10-27T18:35:00Z",
+            "updatedAt": "2026-10-27T18:35:00Z"
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "employeeNumber": "EMP-10482",
+            "firstName": "Elena",
+            "lastName": "Rostova",
+            "email": "elena.rostova@example.com",
+            "phone": "+13125550194",
+            "licenseNumber": "R620-2109-8451",
+            "licenseClass": "ClassA",
+            "licenseExpiryDate": "2028-09-30",
+            "status": "Active"
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 409 Response
+    description: A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "employeeNumber": "EMP-10482",
+            "firstName": "Elena",
+            "lastName": "Rostova",
+            "email": "elena.rostova@example.com",
+            "phone": "+13125550194",
+            "licenseNumber": "R620-2109-8451",
+            "licenseClass": "ClassA",
+            "licenseExpiryDate": "2028-09-30",
+            "status": "Active"
+          }
+    response:
+      status: 409
+      statusText: Conflict
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/already-exists/",
+            "title": "Already exists",
+            "status": 409,
+            "detail": "The resource being created already exists.",
+            "instance": "/v1/vehicles",
+            "code": "409-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/drivers"
+      method: POST
+      headers:
+        - name: Idempotency-Key
+          value: ""
+          description: Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.
+          disabled: true
+      body:
+        type: json
+        data: |-
+          {
+            "employeeNumber": "EMP-10482",
+            "firstName": "Elena",
+            "lastName": "Rostova",
+            "email": "elena.rostova@example.com",
+            "phone": "+13125550194",
+            "licenseNumber": "R620-2109-8451",
+            "licenseClass": "ClassA",
+            "licenseExpiryDate": "2028-09-30",
+            "status": "Active"
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Creates a new driver record. Returns `201 Created` with `Location` and `ETag` headers.

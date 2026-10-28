@@ -1,0 +1,162 @@
+info:
+  name: Delete a driver
+  type: http
+  seq: 9
+  tags:
+    - Drivers
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/drivers/:driverId"
+  headers:
+    - name: If-Match
+      value: "{{driverEtag}}"
+      description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+  params:
+    - name: driverId
+      value: "{{driverId}}"
+      type: path
+      description: Unique identifier (UUID) of the driver.
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "204"
+  scripts:
+    - type: tests
+      code: |-
+        test("DELETE /drivers/:driverId returns 204 No Content with empty body", function () {
+          expect(res.getStatus()).to.equal(204);
+          const body = res.getBody();
+          expect(body === "" || body === null || body === undefined).to.be.true;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 204 Response
+    description: Driver deleted successfully (no content).
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: DELETE
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 404 Response
+    description: The requested resource was not found (`404 Not Found`).
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: DELETE
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/not-found/",
+            "title": "Not Found",
+            "status": 404,
+            "detail": "The requested resource was not found.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "404-01"
+          }
+  - name: 412 Response
+    description: The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: DELETE
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 412
+      statusText: Precondition Failed
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/business-rule-violation/",
+            "title": "Business Rule Violation",
+            "status": 412,
+            "detail": "The resource ETag does not match the provided If-Match header value.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "412-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: DELETE
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Permanently removes a driver record from the registry.

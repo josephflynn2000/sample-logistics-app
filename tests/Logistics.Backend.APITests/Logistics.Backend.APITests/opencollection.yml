@@ -1,0 +1,53 @@
+opencollection: 1.0.0
+
+info:
+  name: Logistics.Backend.APITests
+
+config:
+  proxy:
+    inherit: true
+    config:
+      protocol: http
+      hostname: ""
+      port: ""
+      auth:
+        username: ""
+        password: ""
+      bypassProxy: ""
+
+request:
+  headers:
+    - name: Accept
+      value: application/json
+  variables:
+    - name: baseUrl
+      value: http://localhost:5000/v1
+    - name: vehicleId
+      value: 4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f
+    - name: vehicleEtag
+      value: '"v1-vehicle-initial"'
+    - name: driverId
+      value: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+    - name: driverEtag
+      value: '"v1-driver-initial"'
+    - name: routeId
+      value: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+    - name: routeEtag
+      value: '"v1-route-initial"'
+
+bundled: false
+
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git
+    presets:
+      defaultEnvironment: local
+    openapi:
+      - sourceUrl: ../../../docs/openapi/openapi.yaml
+        groupBy: tags
+        lastSyncDate: 2026-10-28T16:23:28.253Z
+        specHash: 305baf6111691e40489a77db8bd6dfaf
+        autoCheck: true
+        autoCheckInterval: 5

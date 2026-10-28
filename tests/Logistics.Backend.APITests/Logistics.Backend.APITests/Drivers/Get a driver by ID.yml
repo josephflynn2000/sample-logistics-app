@@ -1,0 +1,191 @@
+info:
+  name: Get a driver by ID
+  type: http
+  seq: 4
+  tags:
+    - Drivers
+
+http:
+  method: GET
+  url: "{{baseUrl}}/drivers/:driverId"
+  params:
+    - name: driverId
+      value: "{{driverId}}"
+      type: path
+      description: Unique identifier (UUID) of the driver.
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: eq
+      value: "{{driverId}}"
+    - expression: res.body.employeeNumber
+      operator: eq
+      value: EMP-10482
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getHeader("etag")) {
+          bru.setVar("driverEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const driverSchema = {
+          type: "object",
+          required: [
+            "id",
+            "employeeNumber",
+            "firstName",
+            "lastName",
+            "email",
+            "phone",
+            "licenseNumber",
+            "licenseClass",
+            "licenseExpiryDate",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            employeeNumber: { type: "string", minLength: 2, maxLength: 32 },
+            firstName: { type: "string", minLength: 1, maxLength: 80 },
+            lastName: { type: "string", minLength: 1, maxLength: 80 },
+            email: { type: "string", format: "email", maxLength: 254 },
+            phone: { type: "string", pattern: "^\\+?[1-9]\\d{1,14}$" },
+            licenseNumber: { type: "string", minLength: 4, maxLength: 32 },
+            licenseClass: { type: "string", enum: ["ClassA", "ClassB", "ClassC", "Standard"] },
+            licenseExpiryDate: { type: "string", format: "date" },
+            status: { type: "string", enum: ["Active", "Inactive", "OnLeave", "Suspended"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("GET /drivers/:driverId returns 200 OK with ETag header", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("GET /drivers/:driverId response conforms to OpenAPI Driver schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(driverSchema);
+        });
+
+        test("GET /drivers/:driverId returns the requested driver ID and details", function () {
+          const expectedId = bru.getVar("driverId") || bru.getEnvVar("driverId");
+          const body = res.getBody();
+          expect(body.id).to.equal(expectedId);
+          expect(body.employeeNumber).to.equal("EMP-10482");
+          expect(body.firstName).to.equal("Elena");
+          expect(body.lastName).to.equal("Rostova");
+          expect(body.licenseClass).to.equal("ClassA");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Driver details retrieved successfully.
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: GET
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+            "employeeNumber": "EMP-10482",
+            "firstName": "Elena",
+            "lastName": "Rostova",
+            "email": "elena.rostova@example.com",
+            "phone": "+13125550194",
+            "licenseNumber": "R620-2109-8451",
+            "licenseClass": "ClassA",
+            "licenseExpiryDate": "2028-09-30",
+            "status": "Active",
+            "createdAt": "2026-10-27T18:35:00Z",
+            "updatedAt": "2026-10-27T18:35:00Z"
+          }
+  - name: 404 Response
+    description: The requested resource was not found (`404 Not Found`).
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: GET
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/not-found/",
+            "title": "Not Found",
+            "status": 404,
+            "detail": "The requested resource was not found.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "404-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/drivers/:driverId"
+      method: GET
+      params:
+        - name: driverId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the driver.
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Retrieves the full details of a specific driver by their unique identifier.

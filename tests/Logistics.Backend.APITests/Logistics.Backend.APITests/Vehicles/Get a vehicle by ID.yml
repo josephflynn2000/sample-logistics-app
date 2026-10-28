@@ -1,0 +1,191 @@
+info:
+  name: Get a vehicle by ID
+  type: http
+  seq: 4
+  tags:
+    - Vehicles
+
+http:
+  method: GET
+  url: "{{baseUrl}}/vehicles/:vehicleId"
+  params:
+    - name: vehicleId
+      value: "{{vehicleId}}"
+      type: path
+      description: Unique identifier (UUID) of the vehicle.
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: eq
+      value: "{{vehicleId}}"
+    - expression: res.body.vin
+      operator: eq
+      value: 1FUJGHDV0CLBP8899
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getHeader("etag")) {
+          bru.setVar("vehicleEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const vehicleSchema = {
+          type: "object",
+          required: [
+            "id",
+            "vin",
+            "licensePlate",
+            "make",
+            "model",
+            "year",
+            "type",
+            "capacityKg",
+            "capacityVolumeM3",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            vin: { type: "string", minLength: 17, maxLength: 17, pattern: "^[A-HJ-NPR-Z0-9]{17}$" },
+            licensePlate: { type: "string", minLength: 2, maxLength: 20 },
+            make: { type: "string", minLength: 1, maxLength: 60 },
+            model: { type: "string", minLength: 1, maxLength: 60 },
+            year: { type: "integer", minimum: 1990, maximum: 2100 },
+            type: { type: "string", enum: ["Van", "BoxTruck", "SemiTractor", "RefrigeratedTruck", "Flatbed"] },
+            capacityKg: { type: "number", minimum: 1 },
+            capacityVolumeM3: { type: "number", minimum: 0.1 },
+            status: { type: "string", enum: ["Available", "InMaintenance", "OutOfService", "Retired"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("GET /vehicles/:vehicleId returns 200 OK with ETag header", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("GET /vehicles/:vehicleId response conforms to OpenAPI Vehicle schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(vehicleSchema);
+        });
+
+        test("GET /vehicles/:vehicleId returns the requested vehicle ID and details", function () {
+          const expectedId = bru.getVar("vehicleId") || bru.getEnvVar("vehicleId");
+          const body = res.getBody();
+          expect(body.id).to.equal(expectedId);
+          expect(body.vin).to.equal("1FUJGHDV0CLBP8899");
+          expect(body.licensePlate).to.equal("IL-LOG-4021");
+          expect(body.make).to.equal("Freightliner");
+          expect(body.model).to.equal("Cascadia");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Vehicle details retrieved successfully.
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: GET
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "Van",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available",
+            "createdAt": "2026-10-27T18:30:00Z",
+            "updatedAt": "2026-10-27T18:30:00Z"
+          }
+  - name: 404 Response
+    description: The requested resource was not found (`404 Not Found`).
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: GET
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/not-found/",
+            "title": "Not Found",
+            "status": 404,
+            "detail": "The requested resource was not found.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "404-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: GET
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Retrieves the full details of a specific vehicle by its unique identifier.

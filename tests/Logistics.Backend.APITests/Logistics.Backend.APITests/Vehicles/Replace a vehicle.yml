@@ -1,0 +1,413 @@
+info:
+  name: Replace a vehicle
+  type: http
+  seq: 5
+  tags:
+    - Vehicles
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/vehicles/:vehicleId"
+  headers:
+    - name: If-Match
+      value: "{{vehicleEtag}}"
+      description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+  params:
+    - name: vehicleId
+      value: "{{vehicleId}}"
+      type: path
+      description: Unique identifier (UUID) of the vehicle.
+  body:
+    type: json
+    data: |-
+      {
+        "vin": "1FUJGHDV0CLBP8899",
+        "licensePlate": "IL-LOG-4021",
+        "make": "Freightliner",
+        "model": "Cascadia",
+        "year": 2024,
+        "type": "SemiTractor",
+        "capacityKg": 18500,
+        "capacityVolumeM3": 85.5,
+        "status": "Available"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.headers['content-type']
+      operator: contains
+      value: application/json
+    - expression: res.headers['etag']
+      operator: isNotEmpty
+    - expression: res.body.id
+      operator: eq
+      value: "{{vehicleId}}"
+    - expression: res.body.capacityKg
+      operator: eq
+      value: "18500"
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getHeader("etag")) {
+          bru.setVar("vehicleEtag", res.getHeader("etag"));
+        }
+    - type: tests
+      code: |-
+        const vehicleSchema = {
+          type: "object",
+          required: [
+            "id",
+            "vin",
+            "licensePlate",
+            "make",
+            "model",
+            "year",
+            "type",
+            "capacityKg",
+            "capacityVolumeM3",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            vin: { type: "string", minLength: 17, maxLength: 17, pattern: "^[A-HJ-NPR-Z0-9]{17}$" },
+            licensePlate: { type: "string", minLength: 2, maxLength: 20 },
+            make: { type: "string", minLength: 1, maxLength: 60 },
+            model: { type: "string", minLength: 1, maxLength: 60 },
+            year: { type: "integer", minimum: 1990, maximum: 2100 },
+            type: { type: "string", enum: ["Van", "BoxTruck", "SemiTractor", "RefrigeratedTruck", "Flatbed"] },
+            capacityKg: { type: "number", minimum: 1 },
+            capacityVolumeM3: { type: "number", minimum: 0.1 },
+            status: { type: "string", enum: ["Available", "InMaintenance", "OutOfService", "Retired"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" }
+          }
+        };
+
+        test("PUT /vehicles/:vehicleId returns 200 OK with updated ETag header", function () {
+          expect(res.getStatus()).to.equal(200);
+          expect(res.getHeader("content-type")).to.include("application/json");
+          expect(res.getHeader("etag")).to.be.a("string").and.not.be.empty;
+        });
+
+        test("PUT /vehicles/:vehicleId response conforms to OpenAPI Vehicle schema", function () {
+          expect(res.getBody()).to.be.json;
+          expect(res.getBody()).to.have.jsonSchema(vehicleSchema);
+        });
+
+        test("PUT /vehicles/:vehicleId replaces vehicle attributes with updated values", function () {
+          const expectedId = bru.getVar("vehicleId") || bru.getEnvVar("vehicleId");
+          const body = res.getBody();
+          expect(body.id).to.equal(expectedId);
+          expect(body.capacityKg).to.equal(18500);
+          expect(body.vin).to.equal("1FUJGHDV0CLBP8899");
+          expect(body.status).to.equal("Available");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: 200 Response
+    description: Vehicle successfully replaced.
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18500,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "id": "4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "Van",
+            "capacityKg": 18000,
+            "capacityVolumeM3": 85.5,
+            "status": "Available",
+            "createdAt": "2026-10-27T18:30:00Z",
+            "updatedAt": "2026-10-27T18:30:00Z"
+          }
+  - name: 400 Response
+    description: Request validation failed (`400 Bad Request`).
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18500,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/validation-error/",
+            "title": "Validation Error",
+            "status": 400,
+            "detail": "The request is not valid.",
+            "instance": "/v1/vehicles",
+            "code": "400-02",
+            "errors": [
+              {
+                "detail": "The VIN must be exactly 17 alphanumeric characters.",
+                "pointer": "#/vin"
+              },
+              {
+                "detail": "Payload capacity must be greater than 0.",
+                "pointer": "#/capacityKg"
+              }
+            ]
+          }
+  - name: 404 Response
+    description: The requested resource was not found (`404 Not Found`).
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18500,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/not-found/",
+            "title": "Not Found",
+            "status": 404,
+            "detail": "The requested resource was not found.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "404-01"
+          }
+  - name: 409 Response
+    description: A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18500,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 409
+      statusText: Conflict
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/already-exists/",
+            "title": "Already exists",
+            "status": 409,
+            "detail": "The resource being created already exists.",
+            "instance": "/v1/vehicles",
+            "code": "409-01"
+          }
+  - name: 412 Response
+    description: The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18500,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 412
+      statusText: Precondition Failed
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/business-rule-violation/",
+            "title": "Business Rule Violation",
+            "status": 412,
+            "detail": "The resource ETag does not match the provided If-Match header value.",
+            "instance": "/v1/vehicles/4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f",
+            "code": "412-01"
+          }
+  - name: 500 Response
+    description: An unexpected server error occurred (`500 Internal Server Error`).
+    request:
+      url: "{{baseUrl}}/vehicles/:vehicleId"
+      method: PUT
+      headers:
+        - name: If-Match
+          value: ""
+          description: Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.
+          disabled: true
+      params:
+        - name: vehicleId
+          value: ""
+          type: path
+          description: Unique identifier (UUID) of the vehicle.
+      body:
+        type: json
+        data: |-
+          {
+            "vin": "1FUJGHDV0CLBP8899",
+            "licensePlate": "IL-LOG-4021",
+            "make": "Freightliner",
+            "model": "Cascadia",
+            "year": 2024,
+            "type": "SemiTractor",
+            "capacityKg": 18500,
+            "capacityVolumeM3": 85.5,
+            "status": "Available"
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "https://problems-registry.smartbear.com/server-error/",
+            "title": "Server Error",
+            "status": 500,
+            "detail": "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+            "instance": "/v1/vehicles",
+            "code": "500-01"
+          }
+
+docs: Performs a full replacement of an existing vehicle record. Clients may supply an `If-Match` header with the resource's current `ETag` to prevent lost updates.
