@@ -21,14 +21,57 @@ public static class VehicleApi
             .WithTags("Vehicles");
 
         group.MapPost("/", CreateVehicle)
-            .Accepts<CreateVehicleRequest>("application/json");
-        group.MapGet("/", ListVehicles);
-        group.MapGet("/{vehicleId}", GetVehicleById);
+            .WithName("Vehicles_Create")
+            .WithSummary("Register a new vehicle")
+            .WithDescription("Creates a new vehicle record in the fleet registry. Returns `201 Created` with a `Location` header pointing to the new resource URI and an `ETag` header for optimistic concurrency control.")
+            .Accepts<CreateVehicleRequest>("application/json")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapGet("/", ListVehicles)
+            .WithName("Vehicles_List")
+            .WithSummary("List vehicles")
+            .WithDescription("Retrieves a paginated list of vehicles, with optional filtering by operational status, vehicle type, minimum payload capacity, or free-text search.")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapGet("/{vehicleId}", GetVehicleById)
+            .WithName("Vehicles_Get")
+            .WithSummary("Get a vehicle by ID")
+            .WithDescription("Retrieves the full details of a specific vehicle by its unique identifier.")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
         group.MapPut("/{vehicleId}", ReplaceVehicle)
-            .Accepts<UpdateVehicleRequest>("application/json");
+            .WithName("Vehicles_Replace")
+            .WithSummary("Replace a vehicle")
+            .WithDescription("Performs a full replacement of an existing vehicle record. Clients may supply an `If-Match` header with the resource's current `ETag` to prevent lost updates.")
+            .Accepts<UpdateVehicleRequest>("application/json")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
         group.MapPatch("/{vehicleId}", PatchVehicle)
-            .Accepts<PatchVehicleRequest>("application/merge-patch+json", "application/json");
-        group.MapDelete("/{vehicleId}", DeleteVehicle);
+            .WithName("Vehicles_Update")
+            .WithSummary("Partially update a vehicle")
+            .WithDescription("Applies a partial update to an existing vehicle using JSON Merge Patch (RFC 7396) semantics. Only provided fields are modified.")
+            .Accepts<PatchVehicleRequest>("application/merge-patch+json", "application/json")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapDelete("/{vehicleId}", DeleteVehicle)
+            .WithName("Vehicles_Delete")
+            .WithSummary("Delete a vehicle")
+            .WithDescription("Permanently removes a vehicle record from the registry.")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
     }
 
     private static async Task<Results<Ok<VehicleListResponse>, ProblemHttpResult>> ListVehicles(
