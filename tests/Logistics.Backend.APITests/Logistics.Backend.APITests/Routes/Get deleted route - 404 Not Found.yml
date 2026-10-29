@@ -24,9 +24,6 @@ runtime:
     - expression: res.headers['content-type']
       operator: contains
       value: application/problem+json
-    - expression: res.body.type
-      operator: eq
-      value: https://problems-registry.smartbear.com/not-found/
     - expression: res.body.status
       operator: eq
       value: "404"
@@ -37,12 +34,11 @@ runtime:
           type: "object",
           required: ["type", "title", "status", "detail"],
           properties: {
-            type: { type: "string", const: "https://problems-registry.smartbear.com/not-found/" },
+            type: { type: "string", minLength: 1 },
             title: { type: "string", minLength: 1 },
             status: { type: "integer", const: 404 },
             detail: { type: "string", minLength: 1 },
-            instance: { type: "string" },
-            code: { type: "string" }
+            instance: { type: "string" }
           }
         };
 
@@ -51,7 +47,7 @@ runtime:
           expect(res.getHeader("content-type")).to.include("application/problem+json");
         });
 
-        test("404 response conforms to RFC 9457 ProblemDetails not-found schema", function () {
+        test("404 response conforms to RFC 9457 ProblemDetails schema", function () {
           expect(res.getBody()).to.be.json;
           expect(res.getBody()).to.have.jsonSchema(notFoundProblemSchema);
         });

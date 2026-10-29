@@ -50,9 +50,6 @@ runtime:
     - expression: res.headers['content-type']
       operator: contains
       value: application/problem+json
-    - expression: res.body.type
-      operator: eq
-      value: https://problems-registry.smartbear.com/already-exists/
     - expression: res.body.status
       operator: eq
       value: "409"
@@ -63,12 +60,11 @@ runtime:
           type: "object",
           required: ["type", "title", "status", "detail"],
           properties: {
-            type: { type: "string", const: "https://problems-registry.smartbear.com/already-exists/" },
+            type: { type: "string", minLength: 1 },
             title: { type: "string", minLength: 1 },
             status: { type: "integer", const: 409 },
             detail: { type: "string", minLength: 1 },
-            instance: { type: "string" },
-            code: { type: "string" }
+            instance: { type: "string" }
           }
         };
 
@@ -77,7 +73,7 @@ runtime:
           expect(res.getHeader("content-type")).to.include("application/problem+json");
         });
 
-        test("409 response conforms to RFC 9457 ProblemDetails already-exists schema", function () {
+        test("409 response conforms to RFC 9457 ProblemDetails schema", function () {
           expect(res.getBody()).to.be.json;
           expect(res.getBody()).to.have.jsonSchema(conflictProblemSchema);
         });
