@@ -21,14 +21,57 @@ public static class DriverApi
             .WithTags("Drivers");
 
         group.MapPost("/", CreateDriver)
-            .Accepts<CreateDriverRequest>("application/json");
-        group.MapGet("/", ListDrivers);
-        group.MapGet("/{driverId}", GetDriverById);
+            .WithName("Drivers_Create")
+            .WithSummary("Register a new driver")
+            .WithDescription("Creates a new driver record. Returns `201 Created` with `Location` and `ETag` headers.")
+            .Accepts<CreateDriverRequest>("application/json")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapGet("/", ListDrivers)
+            .WithName("Drivers_List")
+            .WithSummary("List drivers")
+            .WithDescription("Retrieves a paginated list of drivers, with optional filtering by status, commercial license class, or search query.")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapGet("/{driverId}", GetDriverById)
+            .WithName("Drivers_Get")
+            .WithSummary("Get a driver by ID")
+            .WithDescription("Retrieves the full details of a specific driver by their unique identifier.")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
         group.MapPut("/{driverId}", ReplaceDriver)
-            .Accepts<UpdateDriverRequest>("application/json");
+            .WithName("Drivers_Replace")
+            .WithSummary("Replace a driver")
+            .WithDescription("Performs a full replacement of an existing driver record.")
+            .Accepts<UpdateDriverRequest>("application/json")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
         group.MapPatch("/{driverId}", PatchDriver)
-            .Accepts<PatchDriverRequest>("application/merge-patch+json", "application/json");
-        group.MapDelete("/{driverId}", DeleteDriver);
+            .WithName("Drivers_Update")
+            .WithSummary("Partially update a driver")
+            .WithDescription("Applies a partial update to an existing driver record using JSON Merge Patch (RFC 7396) semantics.")
+            .Accepts<PatchDriverRequest>("application/merge-patch+json", "application/json")
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapDelete("/{driverId}", DeleteDriver)
+            .WithName("Drivers_Delete")
+            .WithSummary("Delete a driver")
+            .WithDescription("Permanently removes a driver record from the registry.")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
     }
 
     private static async Task<Results<Ok<DriverListResponse>, ProblemHttpResult>> ListDrivers(
