@@ -36,5 +36,6 @@ using (IServiceScope scope = app.Services.CreateScope())
 }
 
 app.MapVehicleApi();
+app.MapDriverApi();
 
 app.Run();

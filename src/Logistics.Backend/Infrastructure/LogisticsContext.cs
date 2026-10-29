@@ -1,3 +1,4 @@
+using Logistics.Backend.Model.Drivers;
 using Logistics.Backend.Model.Vehicles;
 
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ public class LogisticsContext(
     DbContextOptions<LogisticsContext> options) : DbContext(options)
 {
     public DbSet<Vehicle> Vehicles { get; set; } = null!;
+    public DbSet<Driver> Drivers { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +27,21 @@ public class LogisticsContext(
             entity.Property(v => v.CreatedAt)
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
             entity.Property(v => v.UpdatedAt)
+                .HasConversion(new DateTimeOffsetToBinaryConverter());
+        });
+
+        modelBuilder.Entity<Driver>(entity =>
+        {
+            entity.HasKey(d => d.Id);
+            entity.HasIndex(d => d.EmployeeNumber).IsUnique();
+            entity.HasIndex(d => d.Email).IsUnique();
+            entity.HasIndex(d => d.LicenseNumber).IsUnique();
+            entity.HasIndex(d => new { d.CreatedAt, d.Id });
+            entity.HasIndex(d => new { d.UpdatedAt, d.Id });
+
+            entity.Property(d => d.CreatedAt)
+                .HasConversion(new DateTimeOffsetToBinaryConverter());
+            entity.Property(d => d.UpdatedAt)
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
         });
     }
