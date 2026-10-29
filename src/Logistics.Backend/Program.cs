@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddValidation();
 builder.Services.AddProblemDetails();
+builder.Services.AddMemoryCache();
 
 var withApiVersioning = builder.Services.AddApiVersioning(options =>
 {
@@ -24,6 +25,15 @@ builder.Services.AddDbContext<LogisticsContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("LogisticsDatabase"));
 });
 var app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    LogisticsContext db = scope.ServiceProvider.GetRequiredService<LogisticsContext>();
+    db.Database.EnsureCreated();
+}
 
 app.MapVehicleApi();
 

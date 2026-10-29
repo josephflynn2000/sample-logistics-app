@@ -40,5 +40,6 @@ public sealed record class Vehicle
 
     public DateTimeOffset CreatedAt { get; init; }
 
+    [ConcurrencyCheck]
     public DateTimeOffset UpdatedAt { get; set; }
 }
