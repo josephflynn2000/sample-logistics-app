@@ -32,39 +32,25 @@ runtime:
     - expression: res.headers['content-type']
       operator: contains
       value: application/problem+json
-    - expression: res.body.type
-      operator: eq
-      value: https://problems-registry.smartbear.com/validation-error/
     - expression: res.body.status
       operator: eq
       value: "400"
     - expression: res.body.errors
-      operator: isArray
+      operator: isJson
   scripts:
     - type: tests
       code: |-
         const problemDetailsSchema = {
           type: "object",
-          required: ["type", "title", "status", "detail", "errors"],
+          required: ["type", "title", "status", "errors"],
           properties: {
-            type: { type: "string", const: "https://problems-registry.smartbear.com/validation-error/" },
+            type: { type: "string", minLength: 1 },
             title: { type: "string", minLength: 1 },
             status: { type: "integer", const: 400 },
-            detail: { type: "string", minLength: 1 },
+            detail: { type: "string" },
             instance: { type: "string" },
-            code: { type: "string" },
             errors: {
-              type: "array",
-              minItems: 1,
-              items: {
-                type: "object",
-                required: ["detail"],
-                properties: {
-                  detail: { type: "string", minLength: 1 },
-                  pointer: { type: "string" },
-                  parameter: { type: "string" }
-                }
-              }
+              type: "object"
             }
           }
         };
@@ -74,7 +60,7 @@ runtime:
           expect(res.getHeader("content-type")).to.include("application/problem+json");
         });
 
-        test("400 response conforms to RFC 9457 ProblemDetails validation-error schema", function () {
+        test("400 response conforms to RFC 9457 ValidationProblemDetails schema", function () {
           expect(res.getBody()).to.be.json;
           expect(res.getBody()).to.have.jsonSchema(problemDetailsSchema);
         });

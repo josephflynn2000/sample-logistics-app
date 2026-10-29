@@ -2,7 +2,7 @@ name: local
 
 variables:
   - name: baseUrl
-    value: http://localhost:5000/v1
+    value: http://localhost:5045/v1
   - name: vehicleId
     value: 4f8b9c10-2c3d-4e5a-9b8a-1a2b3c4d5e6f
   - name: vehicleEtag
