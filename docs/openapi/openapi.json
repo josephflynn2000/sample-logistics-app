@@ -1,0 +1,2925 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Logistics Management REST API",
+    "description": "RESTful HTTP API for logistics analysts to register and manage core fleet and transit resources:\n- **Vehicles**: Fleet vehicles, payload capacities, and operational statuses.\n- **Drivers**: Driver personnel records, commercial license classifications, and availability statuses.\n- **Routes**: Transit and delivery routes composed of an ordered sequence of geographic waypoints.\n\n### REST Design Principles\nThis API follows:\n- **Core REST Principles**: Resource-oriented plural nouns, standard HTTP method semantics (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`), statelessness, and hypermedia/location headers.\n- **Microsoft Azure REST API Guidelines**: Explicit URI path versioning (`/v1`), optimistic concurrency control via `ETag` and `If-Match` headers, `Idempotency-Key` support for safe retries on `POST`, and standardized `application/problem+json` error payloads.\n- **Google Cloud API Design Guide (AIPs)**: Token-based pagination (`pageSize`, `pageToken`, `nextPageToken`, `totalCount`), standard collection filtering (`status`, `search`), and consistent resource lifecycle timestamps (`createdAt`, `updatedAt`).",
+    "contact": {
+      "name": "Logistics Platform Team"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5045",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/v1/vehicles": {
+      "post": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Register a new vehicle",
+        "description": "Creates a new vehicle record in the fleet registry. Returns `201 Created` with a `Location` header pointing to the new resource URI and an `ETag` header for optimistic concurrency control.",
+        "operationId": "Vehicles_Create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVehicleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Vehicle successfully registered.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URI of the newly created resource.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "List vehicles",
+        "description": "Retrieves a paginated list of vehicles, with optional filtering by operational status, vehicle type, minimum payload capacity, or free-text search.",
+        "operationId": "Vehicles_List",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Maximum number of items to return per page (default 25, max 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "Sort expression (e.g., `createdAt desc`, `name asc`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by operational status.",
+            "schema": {
+              "$ref": "#/components/schemas/VehicleStatus"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by vehicle type classification.",
+            "schema": {
+              "$ref": "#/components/schemas/VehicleType"
+            }
+          },
+          {
+            "name": "minCapacityKg",
+            "in": "query",
+            "description": "Filter vehicles with payload capacity greater than or equal to this value in kilograms.",
+            "schema": {
+              "minimum": 0,
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive free-text filter applied across key identifying fields.",
+            "schema": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of vehicles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vehicles/{vehicleId}": {
+      "get": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Get a vehicle by ID",
+        "description": "Retrieves the full details of a specific vehicle by its unique identifier.",
+        "operationId": "Vehicles_Get",
+        "parameters": [
+          {
+            "name": "vehicleId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the vehicle.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vehicle details.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Replace a vehicle",
+        "description": "Performs a full replacement of an existing vehicle record. Clients may supply an `If-Match` header with the resource's current `ETag` to prevent lost updates.",
+        "operationId": "Vehicles_Replace",
+        "parameters": [
+          {
+            "name": "vehicleId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the vehicle.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVehicleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Vehicle successfully replaced.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Partially update a vehicle",
+        "description": "Applies a partial update to an existing vehicle using JSON Merge Patch (RFC 7396) semantics. Only provided fields are modified.",
+        "operationId": "Vehicles_Update",
+        "parameters": [
+          {
+            "name": "vehicleId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the vehicle.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchVehicleRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchVehicleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Vehicle successfully updated.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Vehicles"
+        ],
+        "summary": "Delete a vehicle",
+        "description": "Permanently removes a vehicle record from the registry.",
+        "operationId": "Vehicles_Delete",
+        "parameters": [
+          {
+            "name": "vehicleId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the vehicle.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Vehicle successfully deleted."
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/drivers": {
+      "post": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Register a new driver",
+        "description": "Creates a new driver record. Returns `201 Created` with `Location` and `ETag` headers.",
+        "operationId": "Drivers_Create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDriverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Driver successfully registered.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URI of the newly created resource.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Driver"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "List drivers",
+        "description": "Retrieves a paginated list of drivers, with optional filtering by status, commercial license class, or search query.",
+        "operationId": "Drivers_List",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Maximum number of items to return per page (default 25, max 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "Sort expression (e.g., `createdAt desc`, `name asc`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by operational status.",
+            "schema": {
+              "$ref": "#/components/schemas/DriverStatus"
+            }
+          },
+          {
+            "name": "licenseClass",
+            "in": "query",
+            "description": "Filter drivers by commercial driver license class.",
+            "schema": {
+              "$ref": "#/components/schemas/LicenseClass"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive free-text filter applied across key identifying fields.",
+            "schema": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of drivers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/drivers/{driverId}": {
+      "get": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Get a driver by ID",
+        "description": "Retrieves the full details of a specific driver by their unique identifier.",
+        "operationId": "Drivers_Get",
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the driver.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Driver details.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Driver"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Replace a driver",
+        "description": "Performs a full replacement of an existing driver record.",
+        "operationId": "Drivers_Replace",
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the driver.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDriverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Driver successfully replaced.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Driver"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Partially update a driver",
+        "description": "Applies a partial update to an existing driver record using JSON Merge Patch (RFC 7396) semantics.",
+        "operationId": "Drivers_Update",
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the driver.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchDriverRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchDriverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Driver successfully updated.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Driver"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Delete a driver",
+        "description": "Permanently removes a driver record from the registry.",
+        "operationId": "Drivers_Delete",
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the driver.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Driver successfully deleted."
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/routes": {
+      "post": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Create a new route",
+        "description": "Registers a new transit or delivery route along with its ordered sequence of geographic waypoints (`waypoints`). Returns `201 Created` with `Location` and `ETag` headers.",
+        "operationId": "Routes_Create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Route successfully registered.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URI of the newly created resource.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Route"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "List routes",
+        "description": "Retrieves a paginated list of routes, with optional filtering by lifecycle status or search query against route code and name.",
+        "operationId": "Routes_List",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Maximum number of items to return per page (default 25, max 100).",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "Opaque continuation token returned from a previous list call (`nextPageToken`) to fetch the next page of results.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "Sort expression (e.g., `createdAt desc`, `name asc`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by operational status.",
+            "schema": {
+              "$ref": "#/components/schemas/RouteStatus"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive free-text filter applied across key identifying fields.",
+            "schema": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of routes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/routes/{routeId}": {
+      "get": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Get a route by ID",
+        "description": "Retrieves the full details of a route, including its ordered list of waypoints.",
+        "operationId": "Routes_Get",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the route.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Route details.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Route"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Replace a route",
+        "description": "Performs a full replacement of an existing route and its embedded waypoints.",
+        "operationId": "Routes_Replace",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the route.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Route successfully replaced.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Route"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Partially update a route",
+        "description": "Applies a partial update to an existing route's metadata or waypoints using JSON Merge Patch (RFC 7396) semantics.",
+        "operationId": "Routes_Update",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the route.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRouteRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Route successfully updated.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Route"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Delete a route",
+        "description": "Permanently removes a route from the registry.",
+        "operationId": "Routes_Delete",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the route.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Route successfully deleted."
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/routes/{routeId}/waypoints": {
+      "get": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Get ordered waypoints for a route",
+        "description": "Retrieves the ordered sequence of geographic waypoints for a specific route.",
+        "operationId": "Routes_GetWaypoints",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the route.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ordered sequence of waypoints for the route.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteWaypointsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Routes"
+        ],
+        "summary": "Replace ordered waypoints for a route",
+        "description": "Atomically replaces the entire ordered sequence of waypoints for a specific route.",
+        "operationId": "Routes_ReplaceWaypoints",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "path",
+            "description": "Unique identifier (UUID) of the route.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceWaypointsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ordered waypoints successfully replaced.",
+            "headers": {
+              "ETag": {
+                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteWaypointsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed (`400 Bad Request`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found (`404 Not Found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected server error occurred (`500 Internal Server Error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateDriverRequest": {
+        "required": [
+          "employeeNumber",
+          "firstName",
+          "lastName",
+          "email",
+          "phone",
+          "licenseNumber",
+          "licenseExpiryDate"
+        ],
+        "type": "object",
+        "properties": {
+          "employeeNumber": {
+            "maxLength": 32,
+            "minLength": 2,
+            "type": "string"
+          },
+          "firstName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "lastName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 0,
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^\\+?[1-9]\\d{1,14}$",
+            "type": "string"
+          },
+          "licenseNumber": {
+            "maxLength": 32,
+            "minLength": 4,
+            "type": "string"
+          },
+          "licenseClass": {
+            "$ref": "#/components/schemas/LicenseClass"
+          },
+          "licenseExpiryDate": {
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "type": "string"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DriverStatus"
+              }
+            ]
+          }
+        }
+      },
+      "CreateRouteRequest": {
+        "required": [
+          "code",
+          "name",
+          "waypoints"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[A-Z0-9-]+$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RouteStatus"
+              }
+            ]
+          },
+          "estimatedDistanceKm": {
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "estimatedDurationMinutes": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "waypoints": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteWaypoint"
+            }
+          }
+        }
+      },
+      "CreateVehicleRequest": {
+        "required": [
+          "vin",
+          "licensePlate",
+          "make",
+          "model"
+        ],
+        "type": "object",
+        "properties": {
+          "vin": {
+            "maxLength": 17,
+            "minLength": 17,
+            "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+            "type": "string"
+          },
+          "licensePlate": {
+            "maxLength": 20,
+            "minLength": 2,
+            "type": "string"
+          },
+          "make": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "year": {
+            "maximum": 2100,
+            "minimum": 1990,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "type": {
+            "$ref": "#/components/schemas/VehicleType"
+          },
+          "capacityKg": {
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "capacityVolumeM3": {
+            "minimum": 0.1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VehicleStatus"
+              }
+            ]
+          }
+        }
+      },
+      "Driver": {
+        "required": [
+          "employeeNumber",
+          "firstName",
+          "lastName",
+          "email",
+          "phone",
+          "licenseNumber",
+          "licenseExpiryDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "employeeNumber": {
+            "maxLength": 32,
+            "minLength": 2,
+            "type": "string"
+          },
+          "firstName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "lastName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 0,
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^\\+?[1-9]\\d{1,14}$",
+            "type": "string"
+          },
+          "licenseNumber": {
+            "maxLength": 32,
+            "minLength": 4,
+            "type": "string"
+          },
+          "licenseClass": {
+            "$ref": "#/components/schemas/LicenseClass"
+          },
+          "licenseExpiryDate": {
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DriverStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DriverListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Driver"
+            }
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "DriverStatus": {
+        "enum": [
+          "Active",
+          "Inactive",
+          "OnLeave",
+          "Suspended"
+        ]
+      },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "LicenseClass": {
+        "enum": [
+          "ClassA",
+          "ClassB",
+          "ClassC",
+          "Standard"
+        ]
+      },
+      "PatchDriverRequest": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "pattern": "^\\+?[1-9]\\d{1,14}$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "licenseNumber": {
+            "maxLength": 32,
+            "minLength": 4,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "licenseClass": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LicenseClass"
+              }
+            ]
+          },
+          "licenseExpiryDate": {
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DriverStatus"
+              }
+            ]
+          }
+        }
+      },
+      "PatchRouteRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[A-Z0-9-]+$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RouteStatus"
+              }
+            ]
+          },
+          "estimatedDistanceKm": {
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "estimatedDurationMinutes": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "waypoints": {
+            "minItems": 2,
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RouteWaypoint"
+            }
+          }
+        }
+      },
+      "PatchVehicleRequest": {
+        "type": "object",
+        "properties": {
+          "licensePlate": {
+            "maxLength": 20,
+            "minLength": 2,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "make": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "model": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "year": {
+            "maximum": 2100,
+            "minimum": 1990,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VehicleType"
+              }
+            ]
+          },
+          "capacityKg": {
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "capacityVolumeM3": {
+            "minimum": 0.1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VehicleStatus"
+              }
+            ]
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ReplaceWaypointsRequest": {
+        "required": [
+          "waypoints"
+        ],
+        "type": "object",
+        "properties": {
+          "waypoints": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteWaypoint"
+            }
+          }
+        }
+      },
+      "Route": {
+        "required": [
+          "code",
+          "name",
+          "waypoints"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[A-Z0-9-]+$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/RouteStatus"
+          },
+          "estimatedDistanceKm": {
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "estimatedDurationMinutes": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "waypoints": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteWaypoint"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RouteListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Route"
+            }
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RouteStatus": {
+        "enum": [
+          "Draft",
+          "Active",
+          "Archived"
+        ]
+      },
+      "RouteWaypoint": {
+        "required": [
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "sequenceNumber": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "address": {
+            "maxLength": 250,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latitude": {
+            "maximum": 90,
+            "minimum": -90,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "maximum": 180,
+            "minimum": -180,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "stopType": {
+            "$ref": "#/components/schemas/StopType"
+          },
+          "dwellTimeMinutes": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RouteWaypointsResponse": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "waypoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteWaypoint"
+            }
+          }
+        }
+      },
+      "StopType": {
+        "enum": [
+          "Origin",
+          "Pickup",
+          "Delivery",
+          "Waypoint",
+          "Destination"
+        ]
+      },
+      "UpdateDriverRequest": {
+        "required": [
+          "employeeNumber",
+          "firstName",
+          "lastName",
+          "email",
+          "phone",
+          "licenseNumber",
+          "licenseExpiryDate"
+        ],
+        "type": "object",
+        "properties": {
+          "employeeNumber": {
+            "maxLength": 32,
+            "minLength": 2,
+            "type": "string"
+          },
+          "firstName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "lastName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 0,
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^\\+?[1-9]\\d{1,14}$",
+            "type": "string"
+          },
+          "licenseNumber": {
+            "maxLength": 32,
+            "minLength": 4,
+            "type": "string"
+          },
+          "licenseClass": {
+            "$ref": "#/components/schemas/LicenseClass"
+          },
+          "licenseExpiryDate": {
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DriverStatus"
+          }
+        }
+      },
+      "UpdateRouteRequest": {
+        "required": [
+          "code",
+          "name",
+          "waypoints"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[A-Z0-9-]+$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/RouteStatus"
+          },
+          "estimatedDistanceKm": {
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "estimatedDurationMinutes": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "waypoints": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteWaypoint"
+            }
+          }
+        }
+      },
+      "UpdateVehicleRequest": {
+        "required": [
+          "vin",
+          "licensePlate",
+          "make",
+          "model"
+        ],
+        "type": "object",
+        "properties": {
+          "vin": {
+            "maxLength": 17,
+            "minLength": 17,
+            "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+            "type": "string"
+          },
+          "licensePlate": {
+            "maxLength": 20,
+            "minLength": 2,
+            "type": "string"
+          },
+          "make": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "year": {
+            "maximum": 2100,
+            "minimum": 1990,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "type": {
+            "$ref": "#/components/schemas/VehicleType"
+          },
+          "capacityKg": {
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "capacityVolumeM3": {
+            "minimum": 0.1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VehicleStatus"
+          }
+        }
+      },
+      "Vehicle": {
+        "required": [
+          "vin",
+          "licensePlate",
+          "make",
+          "model"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vin": {
+            "maxLength": 17,
+            "minLength": 17,
+            "pattern": "^[A-HJ-NPR-Z0-9]{17}$",
+            "type": "string"
+          },
+          "licensePlate": {
+            "maxLength": 20,
+            "minLength": 2,
+            "type": "string"
+          },
+          "make": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "year": {
+            "maximum": 2100,
+            "minimum": 1990,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "type": {
+            "$ref": "#/components/schemas/VehicleType"
+          },
+          "capacityKg": {
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "capacityVolumeM3": {
+            "minimum": 0.1,
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VehicleStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VehicleListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Vehicle"
+            }
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "VehicleStatus": {
+        "enum": [
+          "Available",
+          "InMaintenance",
+          "OutOfService",
+          "Retired"
+        ]
+      },
+      "VehicleType": {
+        "enum": [
+          "Van",
+          "BoxTruck",
+          "SemiTractor",
+          "RefrigeratedTruck",
+          "Flatbed"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Vehicles",
+      "description": "Operations for registering and managing fleet vehicles."
+    },
+    {
+      "name": "Drivers",
+      "description": "Operations for registering and managing drivers and commercial license details."
+    },
+    {
+      "name": "Routes",
+      "description": "Operations for defining and managing transit/delivery routes and their ordered waypoints."
+    }
+  ]
+}
