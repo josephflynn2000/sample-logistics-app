@@ -1,0 +1,213 @@
+<section class="screen-container" aria-label="Vehicles Fleet Management">
+  <!-- Fleet KPI Strip -->
+  <div class="kpi-strip" role="region" aria-label="Fleet Overview Metrics">
+    <div class="kpi-tile">
+      <span class="kpi-number">{{ fleetStats().total }}</span>
+      <span class="kpi-label">Total Fleet Units</span>
+    </div>
+    <div class="kpi-tile active-tone">
+      <span class="kpi-number">{{ fleetStats().available }}</span>
+      <span class="kpi-label">Available Ready</span>
+    </div>
+    <div class="kpi-tile warning-tone">
+      <span class="kpi-number">{{ fleetStats().maintenance }}</span>
+      <span class="kpi-label">In Maintenance</span>
+    </div>
+    <div class="kpi-tile info-tone">
+      <span class="kpi-number">{{ fleetStats().totalPayloadTons }} t</span>
+      <span class="kpi-label">Total Fleet Payload</span>
+    </div>
+  </div>
+
+  <!-- Filter Chips Bar -->
+  <div class="filter-bar">
+    <div class="chip-scroll" role="group" aria-label="Filter vehicles by operational status">
+      @for (opt of statusOptions; track opt.value) {
+        <button
+          type="button"
+          class="m3-filter-chip"
+          [class.selected]="statusFilter() === opt.value"
+          (click)="setStatusFilter(opt.value)"
+          matRipple
+        >
+          @if (statusFilter() === opt.value) {
+            <mat-icon class="chip-check" aria-hidden="true">check</mat-icon>
+          }
+          <span>{{ opt.label }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="chip-scroll" role="group" aria-label="Filter vehicles by body classification">
+      @for (tp of typeOptions; track tp.value) {
+        <button
+          type="button"
+          class="m3-filter-chip tonal"
+          [class.selected]="typeFilter() === tp.value"
+          (click)="setTypeFilter(tp.value)"
+          matRipple
+        >
+          <span>{{ tp.label }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- SSR / Loading Skeleton -->
+  @if (loading()) {
+    <div class="cards-grid" aria-busy="true" aria-label="Loading fleet vehicles">
+      @for (item of [1, 2, 3, 4]; track item) {
+        <div class="m3-card skeleton-card">
+          <div class="skeleton-box" style="height: 52px; width: 70%"></div>
+          <div class="skeleton-box" style="height: 28px; width: 50%; margin-top: 12px"></div>
+          <div class="skeleton-box" style="height: 54px; width: 100%; margin-top: 16px"></div>
+        </div>
+      }
+    </div>
+  } @else if (filteredVehicles().length === 0) {
+    <div class="empty-state m3-card">
+      <mat-icon class="empty-icon" aria-hidden="true">local_shipping</mat-icon>
+      <h2>No fleet vehicles match your filters</h2>
+      <p>Adjust your status or vehicle type filters, or add a new unit to the fleet.</p>
+      <button mat-flat-button type="button" (click)="openCreateDialog()">
+        <mat-icon>add</mat-icon>
+        <span>Add Fleet Vehicle</span>
+      </button>
+    </div>
+  } @else {
+    <!-- Vehicle Cards Grid -->
+    <div class="cards-grid">
+      @for (vehicle of filteredVehicles(); track vehicle.id) {
+        <article class="m3-card vehicle-card">
+          <div class="card-header">
+            <div class="vehicle-type-icon" aria-hidden="true">
+              <mat-icon>{{ getVehicleIcon(vehicle.type) }}</mat-icon>
+            </div>
+            <div class="vehicle-heading">
+              <span class="vehicle-type-label">{{ vehicle.type }}</span>
+              <h2 class="vehicle-title">
+                {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }}
+              </h2>
+            </div>
+            <span
+              class="status-badge"
+              [class]="'status-' + (vehicle.status ?? 'Available').toLowerCase()"
+            >
+              {{ vehicle.status }}
+            </span>
+          </div>
+
+          <div class="plate-vin-row">
+            <div class="license-plate-badge" aria-label="License Plate">
+              <span class="plate-text">{{ vehicle.licensePlate }}</span>
+            </div>
+
+            <button
+              type="button"
+              class="vin-copy-chip"
+              (click)="copyVin(vehicle.vin)"
+              matTooltip="Click to copy full 17-character VIN"
+              [attr.aria-label]="'Copy VIN ' + vehicle.vin"
+            >
+              <span class="vin-code">VIN: {{ vehicle.vin }}</span>
+              <mat-icon aria-hidden="true">content_copy</mat-icon>
+            </button>
+          </div>
+
+          <!-- Capacity Gauges -->
+          <div class="capacity-specs">
+            <div class="spec-row">
+              <div class="spec-labels">
+                <span class="spec-name">Payload Capacity</span>
+                <span class="spec-val">{{ vehicle.capacityKg | number }} kg</span>
+              </div>
+              <div class="m3-progress-track" aria-hidden="true">
+                <div
+                  class="m3-progress-fill"
+                  [style.width.%]="getPayloadPercent(vehicle.capacityKg)"
+                ></div>
+              </div>
+            </div>
+
+            <div class="spec-row">
+              <div class="spec-labels">
+                <span class="spec-name">Cargo Volume</span>
+                <span class="spec-val">{{ vehicle.capacityVolumeM3 | number: '1.1-1' }} m³</span>
+              </div>
+              <div class="m3-progress-track" aria-hidden="true">
+                <div
+                  class="m3-progress-fill secondary"
+                  [style.width.%]="getVolumePercent(vehicle.capacityVolumeM3)"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button
+              mat-stroked-button
+              type="button"
+              class="action-btn"
+              (click)="toggleMaintenance(vehicle)"
+            >
+              <mat-icon>build</mat-icon>
+              <span>{{
+                vehicle.status === 'Available' ? 'Service Bay' : 'Return Ready'
+              }}</span>
+            </button>
+
+            <button
+              mat-tonal-button
+              type="button"
+              class="action-btn edit-btn"
+              (click)="openEditDialog(vehicle)"
+              [attr.aria-label]="'Edit ' + vehicle.year + ' ' + vehicle.make + ' ' + vehicle.model"
+            >
+              <mat-icon>edit</mat-icon>
+              <span>Specs</span>
+            </button>
+
+            <button
+              mat-icon-button
+              type="button"
+              color="warn"
+              (click)="deleteVehicle(vehicle)"
+              matTooltip="Remove vehicle from fleet"
+              [attr.aria-label]="'Remove ' + vehicle.year + ' ' + vehicle.make + ' ' + vehicle.model"
+            >
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+
+    @if (nextPageToken()) {
+      <div class="load-more-container">
+        <button
+          mat-stroked-button
+          type="button"
+          class="load-more-pill"
+          [disabled]="loadingMore()"
+          (click)="loadVehicles(true)"
+        >
+          <mat-icon>expand_more</mat-icon>
+          <span>{{ loadingMore() ? 'Loading more vehicles...' : 'Load More Vehicles' }}</span>
+        </button>
+      </div>
+    }
+  }
+
+  <!-- Android M3 Extended FAB -->
+  <button
+    mat-fab
+    extended
+    type="button"
+    class="m3-fab"
+    (click)="openCreateDialog()"
+    aria-label="Add new fleet vehicle"
+  >
+    <mat-icon>add_road</mat-icon>
+    <span>Add Vehicle</span>
+  </button>
+</section>

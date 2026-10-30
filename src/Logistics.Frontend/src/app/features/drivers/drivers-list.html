@@ -1,0 +1,185 @@
+<section class="screen-container" aria-label="Drivers Management">
+  <!-- KPI Metric Strip -->
+  <div class="kpi-strip" role="region" aria-label="Driver Fleet Statistics">
+    <div class="kpi-tile">
+      <span class="kpi-number">{{ kpiSummary().total }}</span>
+      <span class="kpi-label">Total Roster</span>
+    </div>
+    <div class="kpi-tile active-tone">
+      <span class="kpi-number">{{ kpiSummary().active }}</span>
+      <span class="kpi-label">Active On-Duty</span>
+    </div>
+    <div class="kpi-tile warning-tone">
+      <span class="kpi-number">{{ kpiSummary().onLeave }}</span>
+      <span class="kpi-label">On Leave</span>
+    </div>
+    <div class="kpi-tile alert-tone">
+      <span class="kpi-number">{{ kpiSummary().suspended }}</span>
+      <span class="kpi-label">Suspended</span>
+    </div>
+  </div>
+
+  <!-- Android M3 Filter Chips Bar -->
+  <div class="filter-bar">
+    <div class="chip-scroll" role="group" aria-label="Filter drivers by employment status">
+      @for (opt of statusOptions; track opt.value) {
+        <button
+          type="button"
+          class="m3-filter-chip"
+          [class.selected]="statusFilter() === opt.value"
+          (click)="setStatusFilter(opt.value)"
+          matRipple
+        >
+          @if (statusFilter() === opt.value) {
+            <mat-icon class="chip-check" aria-hidden="true">check</mat-icon>
+          }
+          <span>{{ opt.label }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="chip-scroll secondary-chips" role="group" aria-label="Filter drivers by CDL class">
+      @for (lic of licenseOptions; track lic.value) {
+        <button
+          type="button"
+          class="m3-filter-chip tonal"
+          [class.selected]="licenseFilter() === lic.value"
+          (click)="setLicenseFilter(lic.value)"
+          matRipple
+        >
+          <span>{{ lic.label }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- SSR / Loading Skeleton Grid -->
+  @if (loading()) {
+    <div class="cards-grid" aria-busy="true" aria-label="Loading drivers">
+      @for (item of [1, 2, 3, 4]; track item) {
+        <div class="m3-card skeleton-card">
+          <div class="skeleton-box" style="height: 48px; width: 65%"></div>
+          <div class="skeleton-box" style="height: 24px; width: 90%; margin-top: 14px"></div>
+          <div class="skeleton-box" style="height: 36px; width: 100%; margin-top: 18px"></div>
+        </div>
+      }
+    </div>
+  } @else if (filteredDrivers().length === 0) {
+    <div class="empty-state m3-card">
+      <mat-icon class="empty-icon" aria-hidden="true">person_search</mat-icon>
+      <h2>No matching drivers found</h2>
+      <p>Try adjusting your status or CDL license class filter chips, or register a new driver.</p>
+      <button mat-flat-button type="button" (click)="openCreateDialog()">
+        <mat-icon>person_add</mat-icon>
+        <span>Register New Driver</span>
+      </button>
+    </div>
+  } @else {
+    <!-- Drivers Cards Grid -->
+    <div class="cards-grid">
+      @for (driver of filteredDrivers(); track driver.id) {
+        <article class="m3-card driver-card">
+          <div class="card-top">
+            <div class="driver-avatar" aria-hidden="true">
+              {{ (driver.firstName?.[0] ?? '') + (driver.lastName?.[0] ?? '') }}
+            </div>
+            <div class="driver-identity">
+              <h2 class="driver-name">{{ driver.firstName }} {{ driver.lastName }}</h2>
+              <span class="employee-badge">Emp #{{ driver.employeeNumber }}</span>
+            </div>
+            <span
+              class="status-badge"
+              [class]="'status-' + (driver.status ?? 'Active').toLowerCase()"
+            >
+              {{ driver.status }}
+            </span>
+          </div>
+
+          <div class="license-strip">
+            <div class="cdl-pill">
+              <mat-icon aria-hidden="true">verified_user</mat-icon>
+              <span>CDL {{ driver.licenseClass }} • {{ driver.licenseNumber }}</span>
+            </div>
+            <span class="expiry-tag" [class.expiring]="isExpiringSoon(driver.licenseExpiryDate)">
+              @if (isExpiringSoon(driver.licenseExpiryDate)) {
+                <mat-icon class="warn-icon" aria-hidden="true">warning</mat-icon>
+              }
+              Exp: {{ driver.licenseExpiryDate }}
+            </span>
+          </div>
+
+          <div class="contact-rows">
+            <div class="contact-item">
+              <mat-icon aria-hidden="true">phone_android</mat-icon>
+              <span>{{ driver.phone }}</span>
+            </div>
+            <div class="contact-item">
+              <mat-icon aria-hidden="true">alternate_email</mat-icon>
+              <span class="truncate">{{ driver.email }}</span>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <a
+              mat-stroked-button
+              [href]="'tel:' + driver.phone"
+              class="action-pill"
+              [attr.aria-label]="'Call ' + driver.firstName + ' ' + driver.lastName"
+            >
+              <mat-icon>call</mat-icon>
+              <span>Call</span>
+            </a>
+            <a
+              mat-stroked-button
+              [href]="'mailto:' + driver.email"
+              class="action-pill"
+              [attr.aria-label]="'Email ' + driver.firstName + ' ' + driver.lastName"
+            >
+              <mat-icon>mail</mat-icon>
+              <span>Email</span>
+            </a>
+            <button
+              mat-tonal-button
+              type="button"
+              class="action-pill details-btn"
+              (click)="openInspectSheet(driver)"
+              [attr.aria-label]="'Inspect details for ' + driver.firstName + ' ' + driver.lastName"
+            >
+              <span>Details</span>
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+
+    <!-- Cursor Pagination / Infinite Load More -->
+    @if (nextPageToken()) {
+      <div class="load-more-container">
+        <button
+          mat-stroked-button
+          type="button"
+          class="load-more-pill"
+          [disabled]="loadingMore()"
+          (click)="loadDrivers(true)"
+        >
+          <mat-icon>expand_more</mat-icon>
+          <span>{{ loadingMore() ? 'Loading more drivers...' : 'Load More Drivers' }}</span>
+        </button>
+      </div>
+    }
+  }
+
+  <!-- Android Material 3 Extended FAB -->
+  <button
+    mat-fab
+    extended
+    type="button"
+    class="m3-fab"
+    (click)="openCreateDialog()"
+    aria-label="Add new driver"
+  >
+    <mat-icon>person_add</mat-icon>
+    <span>Add Driver</span>
+  </button>
+</section>
