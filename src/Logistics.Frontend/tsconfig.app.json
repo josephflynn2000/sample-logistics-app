@@ -5,6 +5,6 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../Logistics.ClientLibrary/**/*.ts"],
   "exclude": ["src/**/*.spec.ts"]
 }

@@ -18,6 +18,7 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "src/Logistics.Frontend/src/main.ts",
+            "allowedCommonJsDependencies": ["tinyduration"],
             "tsConfig": "src/Logistics.Frontend/tsconfig.app.json",
             "assets": [
               {
@@ -25,7 +26,10 @@
                 "input": "src/Logistics.Frontend/public"
               }
             ],
-            "styles": ["src/Logistics.Frontend/src/styles.css"],
+            "styles": [
+              "@angular/material/prebuilt-themes/azure-blue.css",
+              "src/Logistics.Frontend/src/styles.css"
+            ],
             "server": "src/Logistics.Frontend/src/main.server.ts",
             "outputMode": "server",
             "security": {
@@ -40,13 +44,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "800kB",
+                  "maximumError": "1.2MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
+                  "maximumWarning": "12kB",
+                  "maximumError": "24kB"
                 }
               ],
               "outputHashing": "all"
@@ -61,6 +65,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "src/Logistics.Frontend/proxy.conf.json"
+          },
           "configurations": {
             "production": {
               "buildTarget": "Logistics.Frontend:build:production"
