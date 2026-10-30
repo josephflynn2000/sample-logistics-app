@@ -1,0 +1,195 @@
+<section class="screen-container" aria-label="Routes and Dispatch Planner">
+  <!-- Route KPI Strip -->
+  <div class="kpi-strip" role="region" aria-label="Dispatch Route Metrics">
+    <div class="kpi-tile">
+      <span class="kpi-number">{{ routeKpis().total }}</span>
+      <span class="kpi-label">Total Corridors</span>
+    </div>
+    <div class="kpi-tile active-tone">
+      <span class="kpi-number">{{ routeKpis().active }}</span>
+      <span class="kpi-label">Active Dispatch</span>
+    </div>
+    <div class="kpi-tile warning-tone">
+      <span class="kpi-number">{{ routeKpis().draft }}</span>
+      <span class="kpi-label">Draft Planning</span>
+    </div>
+    <div class="kpi-tile info-tone">
+      <span class="kpi-number">{{ routeKpis().totalKm | number }} km</span>
+      <span class="kpi-label">Scheduled Network</span>
+    </div>
+  </div>
+
+  <!-- Status Filter Chips -->
+  <div class="filter-bar">
+    <div class="chip-scroll" role="group" aria-label="Filter routes by dispatch status">
+      @for (opt of statusOptions; track opt.value) {
+        <button
+          type="button"
+          class="m3-filter-chip"
+          [class.selected]="statusFilter() === opt.value"
+          (click)="setStatusFilter(opt.value)"
+          matRipple
+        >
+          @if (statusFilter() === opt.value) {
+            <mat-icon class="chip-check" aria-hidden="true">check</mat-icon>
+          }
+          <span>{{ opt.label }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- SSR / Loading Skeleton -->
+  @if (loading()) {
+    <div class="routes-grid" aria-busy="true" aria-label="Loading dispatch routes">
+      @for (item of [1, 2]; track item) {
+        <div class="m3-card skeleton-card">
+          <div class="skeleton-box" style="height: 36px; width: 45%"></div>
+          <div class="skeleton-box" style="height: 24px; width: 80%; margin-top: 12px"></div>
+          <div class="skeleton-box" style="height: 110px; width: 100%; margin-top: 18px"></div>
+        </div>
+      }
+    </div>
+  } @else if (filteredRoutes().length === 0) {
+    <div class="empty-state m3-card">
+      <mat-icon class="empty-icon" aria-hidden="true">route</mat-icon>
+      <h2>No dispatch routes found</h2>
+      <p>Create a new multi-stop corridor or clear your status filters.</p>
+      <button mat-flat-button type="button" (click)="openCreateRoute()">
+        <mat-icon>add_location_alt</mat-icon>
+        <span>Create Dispatch Route</span>
+      </button>
+    </div>
+  } @else {
+    <!-- Routes Cards Grid -->
+    <div class="routes-grid">
+      @for (route of filteredRoutes(); track route.id) {
+        <article class="m3-card route-card">
+          <div class="route-header">
+            <div class="code-title-block">
+              <div class="code-row">
+                <span class="route-code-badge">{{ route.code }}</span>
+                <span
+                  class="status-badge"
+                  [class]="'status-' + (route.status ?? 'Active').toLowerCase()"
+                >
+                  {{ route.status }}
+                </span>
+              </div>
+              <h2 class="route-name">{{ route.name }}</h2>
+              @if (route.description) {
+                <p class="route-desc">{{ route.description }}</p>
+              }
+            </div>
+          </div>
+
+          <!-- Corridor Metrics Banner -->
+          <div class="metrics-banner">
+            <div class="metric-chip">
+              <mat-icon aria-hidden="true">straighten</mat-icon>
+              <span>{{ route.estimatedDistanceKm | number: '1.1-1' }} km</span>
+            </div>
+            <div class="metric-chip">
+              <mat-icon aria-hidden="true">schedule</mat-icon>
+              <span>{{ formatDuration(route.estimatedDurationMinutes) }}</span>
+            </div>
+            <div class="metric-chip">
+              <mat-icon aria-hidden="true">pin_drop</mat-icon>
+              <span>{{ route.waypoints?.length ?? 0 }} Stops</span>
+            </div>
+          </div>
+
+          <!-- Waypoints Progression Timeline -->
+          <div class="waypoints-timeline" role="list" aria-label="Waypoints Progression">
+            @for (
+              wp of route.waypoints ?? [];
+              track wp.sequenceNumber;
+              let isLast = $last
+            ) {
+              <div class="timeline-step" role="listitem">
+                <div class="timeline-rail" aria-hidden="true">
+                  <div
+                    class="stop-node"
+                    [class]="'node-' + (wp.stopType ?? 'Waypoint').toLowerCase()"
+                  >
+                    <mat-icon>{{ getStopIcon(wp.stopType) }}</mat-icon>
+                  </div>
+                  @if (!isLast) {
+                    <div class="rail-connector"></div>
+                  }
+                </div>
+
+                <div class="stop-details">
+                  <div class="stop-top-row">
+                    <span class="stop-seq">#{{ wp.sequenceNumber }} {{ wp.stopType }}</span>
+                    @if ((wp.dwellTimeMinutes ?? 0) > 0) {
+                      <span class="dwell-pill">{{ wp.dwellTimeMinutes }}m dwell</span>
+                    }
+                  </div>
+                  <strong class="stop-label">{{ wp.label }}</strong>
+                  @if (wp.address) {
+                    <span class="stop-address">{{ wp.address }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Card Actions -->
+          <div class="card-actions">
+            <button
+              mat-stroked-button
+              type="button"
+              class="action-btn"
+              (click)="toggleRouteStatus(route)"
+            >
+              <mat-icon>{{
+                route.status === 'Active' ? 'pause_circle' : 'play_circle'
+              }}</mat-icon>
+              <span>{{ route.status === 'Active' ? 'Set Draft' : 'Activate' }}</span>
+            </button>
+
+            <button
+              mat-tonal-button
+              type="button"
+              class="action-btn manage-btn"
+              (click)="openManageRoute(route)"
+              [attr.aria-label]="'Manage stops and waypoints for ' + route.name"
+            >
+              <mat-icon>edit_location_alt</mat-icon>
+              <span>Manage Waypoints</span>
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+
+    @if (nextPageToken()) {
+      <div class="load-more-container">
+        <button
+          mat-stroked-button
+          type="button"
+          class="load-more-pill"
+          [disabled]="loadingMore()"
+          (click)="loadRoutes(true)"
+        >
+          <mat-icon>expand_more</mat-icon>
+          <span>{{ loadingMore() ? 'Loading more routes...' : 'Load More Routes' }}</span>
+        </button>
+      </div>
+    }
+  }
+
+  <!-- Android M3 Extended FAB -->
+  <button
+    mat-fab
+    extended
+    type="button"
+    class="m3-fab"
+    (click)="openCreateRoute()"
+    aria-label="Create new dispatch route"
+  >
+    <mat-icon>add_location_alt</mat-icon>
+    <span>New Route</span>
+  </button>
+</section>
