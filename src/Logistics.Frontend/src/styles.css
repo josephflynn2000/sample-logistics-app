@@ -1,1 +1,101 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global Material 3 & Android App Styling */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background-color: var(--mat-sys-background, #faf9fd);
+  color: var(--mat-sys-on-background, #1a1b1f);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+}
+
+/* Smooth view transitions for Android-like navigation */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
+/* Material 3 Surface & Card Tokens */
+.m3-card {
+  border-radius: 20px !important;
+  background-color: var(--mat-sys-surface-container-low, #f4f3f6);
+  border: 1px solid var(--mat-sys-outline-variant, #c4c6d0);
+  transition:
+    box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.m3-card:hover {
+  box-shadow: var(--mat-sys-level2);
+}
+
+/* Status Chip Themes (WCAG AA compliant contrast) */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.status-active,
+.status-available {
+  background-color: #d4edda;
+  color: #145523;
+}
+
+.status-onleave,
+.status-inmaintenance,
+.status-draft {
+  background-color: #fff3cd;
+  color: #664d03;
+}
+
+.status-suspended,
+.status-outofservice {
+  background-color: #f8d7da;
+  color: #842029;
+}
+
+.status-inactive,
+.status-retired,
+.status-archived {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
+/* Skeleton Shimmer Animation for SSR & Loading States */
+@keyframes m3-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.skeleton-box {
+  background: linear-gradient(90deg, #ecebf0 25%, #e2e1e6 50%, #ecebf0 75%);
+  background-size: 800px 100%;
+  border-radius: 12px;
+  animation: m3-shimmer 1.5s infinite linear;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

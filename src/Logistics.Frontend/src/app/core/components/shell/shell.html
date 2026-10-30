@@ -1,0 +1,124 @@
+<div class="android-app-frame">
+  <!-- Material 3 Top App Bar -->
+  <header class="m3-top-app-bar" role="banner">
+    <div class="top-bar-leading">
+      <div class="brand-logo" aria-hidden="true">
+        <mat-icon>local_shipping</mat-icon>
+      </div>
+      <div class="title-block">
+        <h1 class="app-bar-title">{{ activeScreenTitle() }}</h1>
+        <span class="app-bar-subtitle">{{ activeScreenSubtitle() }}</span>
+      </div>
+    </div>
+
+    <!-- M3 Search Bar (Desktop inline / Mobile expandable) -->
+    <div class="m3-search-container" [class.expanded]="searchExpanded()">
+      <mat-icon class="search-icon" aria-hidden="true">search</mat-icon>
+      <input
+        type="search"
+        class="m3-search-input"
+        [value]="apiService.globalSearch()"
+        (input)="onSearchInput($event)"
+        placeholder="Search {{ activeScreenTitle().toLowerCase() }}..."
+        aria-label="Global search filter"
+      />
+      @if (apiService.globalSearch()) {
+        <button
+          mat-icon-button
+          type="button"
+          class="clear-search-btn"
+          (click)="clearSearch()"
+          aria-label="Clear search query"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <div class="top-bar-actions">
+      <button
+        mat-icon-button
+        type="button"
+        class="mobile-search-toggle"
+        (click)="toggleSearch()"
+        [attr.aria-label]="searchExpanded() ? 'Close search' : 'Open search'"
+      >
+        <mat-icon>{{ searchExpanded() ? 'search_off' : 'search' }}</mat-icon>
+      </button>
+
+      <div
+        class="connection-pill"
+        [class.online]="apiService.backendConnected()"
+        [matTooltip]="
+          apiService.backendConnected()
+            ? 'Connected to /v1 API via Same-Origin Proxy'
+            : 'Using local cached dataset (Backend offline)'
+        "
+      >
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span class="connection-text">
+          {{ apiService.backendConnected() ? 'API Live' : 'Demo Cache' }}
+        </span>
+      </div>
+
+      <button
+        mat-icon-button
+        type="button"
+        class="avatar-btn"
+        aria-label="Dispatcher profile settings"
+        matTooltip="Dispatcher Console • Region North"
+      >
+        <div class="avatar-circle">JD</div>
+      </button>
+    </div>
+  </header>
+
+  <div class="m3-body-layout">
+    <!-- Tablet / Desktop: Material 3 Navigation Rail -->
+    <nav class="m3-nav-rail" aria-label="Primary Logistics Navigation">
+      <div class="rail-destinations">
+        @for (item of navItems; track item.path) {
+          <a
+            class="rail-item"
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            matRipple
+            [attr.aria-label]="item.label + ': ' + item.description"
+          >
+            <div class="m3-pill-indicator">
+              <mat-icon>{{ item.icon }}</mat-icon>
+            </div>
+            <span class="rail-label">{{ item.label }}</span>
+          </a>
+        }
+      </div>
+
+      <div class="rail-footer">
+        <span class="version-tag">M3 • v1.0</span>
+      </div>
+    </nav>
+
+    <!-- Main Screen Viewport -->
+    <main class="m3-viewport-content" role="main">
+      <router-outlet />
+    </main>
+  </div>
+
+  <!-- Mobile (< 768px): Android Material 3 Bottom Navigation Bar -->
+  <nav class="m3-bottom-nav-bar" aria-label="Mobile Bottom Navigation">
+    @for (item of navItems; track item.path) {
+      <a
+        class="bottom-nav-item"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        matRipple
+        [attr.aria-label]="item.label"
+      >
+        <div class="m3-pill-indicator">
+          <mat-icon>{{ item.icon }}</mat-icon>
+        </div>
+        <span class="bottom-nav-label">{{ item.label }}</span>
+      </a>
+    }
+  </nav>
+</div>
