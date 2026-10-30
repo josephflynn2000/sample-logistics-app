@@ -18,7 +18,9 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "src/Logistics.Frontend/src/main.ts",
-            "allowedCommonJsDependencies": ["tinyduration"],
+            "allowedCommonJsDependencies": [
+              "tinyduration"
+            ],
             "tsConfig": "src/Logistics.Frontend/tsconfig.app.json",
             "assets": [
               {
@@ -33,7 +35,11 @@
             "server": "src/Logistics.Frontend/src/main.server.ts",
             "outputMode": "server",
             "security": {
-              "allowedHosts": []
+              "allowedHosts": [
+                "localhost",
+                "*.localhost",
+                "127.0.0.1"
+              ]
             },
             "ssr": {
               "entry": "src/Logistics.Frontend/src/server.ts"
@@ -66,7 +72,12 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "proxyConfig": "src/Logistics.Frontend/proxy.conf.json"
+            "proxyConfig": "src/Logistics.Frontend/proxy.conf.json",
+            "allowedHosts": [
+              "localhost",
+              ".localhost",
+              "127.0.0.1"
+            ]
           },
           "configurations": {
             "production": {
