@@ -39,6 +39,12 @@ export class DriversList {
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly snackBar = inject(MatSnackBar);
 
+  private readonly expiryThresholdIso: string = new Date(
+    Date.now() + 90 * 24 * 60 * 60 * 1000,
+  )
+    .toISOString()
+    .slice(0, 10);
+
   protected readonly drivers = signal<Driver[]>([]);
   protected readonly loading = signal<boolean>(true);
   protected readonly loadingMore = signal<boolean>(false);
@@ -150,7 +156,7 @@ export class DriversList {
     if (!dateStr) {
       return false;
     }
-    return dateStr < '2027-01-01';
+    return dateStr <= this.expiryThresholdIso;
   }
 
   protected openInspectSheet(driver: Driver): void {
@@ -213,7 +219,17 @@ export class DriversList {
         });
         return;
       }
-    } catch {
+    } catch (err: unknown) {
+      if (this.apiService.isConflictError(err) || this.apiService.isValidationError(err)) {
+        const detail = this.apiService.getProblemDetail(
+          err,
+          'A driver with the same employee number, email, or license number already exists.',
+        );
+        this.snackBar.open(detail, 'Dismiss', { duration: 5000 });
+        return;
+      }
+
+      this.apiService.backendConnected.set(false);
       const localDriver: Driver = {
         id: crypto.randomUUID(),
         ...payload,
@@ -247,6 +263,16 @@ export class DriversList {
         return;
       }
 
+      if (this.apiService.isConflictError(err) || this.apiService.isValidationError(err)) {
+        const detail = this.apiService.getProblemDetail(
+          err,
+          'Could not update driver due to a conflict or validation error.',
+        );
+        this.snackBar.open(detail, 'Dismiss', { duration: 5000 });
+        return;
+      }
+
+      this.apiService.backendConnected.set(false);
       this.drivers.update((list) =>
         list.map((d) => (d.id === driverId ? { ...d, ...payload } : d)),
       );
@@ -267,12 +293,23 @@ export class DriversList {
       if (updated) {
         this.drivers.update((list) => list.map((d) => (d.id === driver.id ? updated : d)));
       }
-    } catch {
+    } catch (err: unknown) {
+      if (this.apiService.isPreconditionFailed(err)) {
+        const snack = this.snackBar.open(
+          'Driver was modified by another dispatcher (412 Conflict).',
+          'Reload Latest',
+          { duration: 6000 },
+        );
+        snack.onAction().subscribe(() => {
+          void this.loadDrivers();
+        });
+        return;
+      }
       this.drivers.update((list) =>
         list.map((d) => (d.id === driver.id ? { ...d, status: nextStatus } : d)),
       );
     }
-    this.snackBar.open(`Driver status changed to ${nextStatus}`, 'Undo', { duration: 3500 });
+    this.snackBar.open(`Driver status changed to ${nextStatus}`, 'OK', { duration: 3500 });
   }
 
   private async deleteDriver(driver: Driver): Promise<void> {
@@ -281,8 +318,18 @@ export class DriversList {
     }
     try {
       await this.apiService.client.v1.drivers.byDriverId(driver.id).delete();
-    } catch {
-      // Proceed with local removal if backend is offline
+    } catch (err: unknown) {
+      if (this.apiService.isPreconditionFailed(err)) {
+        const snack = this.snackBar.open(
+          'Driver was modified by another dispatcher (412 Conflict).',
+          'Reload Latest',
+          { duration: 6000 },
+        );
+        snack.onAction().subscribe(() => {
+          void this.loadDrivers();
+        });
+        return;
+      }
     }
     this.drivers.update((list) => list.filter((d) => d.id !== driver.id));
     this.snackBar.open(`Removed ${driver.firstName} ${driver.lastName}`, 'Dismiss', {

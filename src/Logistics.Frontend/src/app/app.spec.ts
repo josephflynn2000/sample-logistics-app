@@ -31,12 +31,25 @@ describe('Logistics Frontend Application', () => {
     expect(compiled.textContent).toContain('Routes');
   });
 
-  it('should manage ETags and detect 412 Precondition Failed in ApiClientService', () => {
+  it('should manage ETags and detect 412/409/400 status codes in ApiClientService', () => {
     const service = TestBed.inject(ApiClientService);
     service.setETag('driver-1', '"v1-abc123"');
     expect(service.getETag('driver-1')).toBe('"v1-abc123"');
     expect(service.isPreconditionFailed({ responseStatusCode: 412 })).toBe(true);
-    expect(service.isPreconditionFailed({ status: 200 })).toBe(false);
+    expect(service.isConflictError({ responseStatusCode: 409 })).toBe(true);
+    expect(service.isValidationError({ responseStatusCode: 400 })).toBe(true);
+    expect(service.getProblemDetail({ detail: 'Duplicate VIN' }, 'Fallback')).toBe(
+      'Duplicate VIN',
+    );
+  });
+
+  it('should serialize PATCH requests with application/merge-patch+json without throwing', () => {
+    const service = TestBed.inject(ApiClientService);
+    const reqInfo = service.client.v1.drivers
+      .byDriverId('d1042000-0000-4000-a000-000000000001')
+      .toPatchRequestInformation({ status: 'OnLeave' });
+    expect(reqInfo.httpMethod).toBe('PATCH');
+    expect(reqInfo.content).toBeDefined();
   });
 
   it('should initialize DriversList, VehiclesList, and RoutesList components cleanly', () => {

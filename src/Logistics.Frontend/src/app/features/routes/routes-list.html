@@ -159,6 +159,17 @@
               <mat-icon>edit_location_alt</mat-icon>
               <span>Manage Waypoints</span>
             </button>
+
+            <button
+              mat-icon-button
+              type="button"
+              color="warn"
+              (click)="deleteRoute(route)"
+              matTooltip="Delete dispatch route"
+              [attr.aria-label]="'Delete route ' + route.code"
+            >
+              <mat-icon>delete_outline</mat-icon>
+            </button>
           </div>
         </article>
       }

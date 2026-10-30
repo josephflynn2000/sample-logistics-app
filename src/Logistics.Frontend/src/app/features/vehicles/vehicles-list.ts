@@ -223,7 +223,18 @@ export class VehiclesList {
       if (updated) {
         this.vehicles.update((list) => list.map((v) => (v.id === vehicle.id ? updated : v)));
       }
-    } catch {
+    } catch (err: unknown) {
+      if (this.apiService.isPreconditionFailed(err)) {
+        const snack = this.snackBar.open(
+          'Vehicle record was modified by another dispatcher (412 Conflict).',
+          'Reload Latest',
+          { duration: 6000 },
+        );
+        snack.onAction().subscribe(() => {
+          void this.loadVehicles();
+        });
+        return;
+      }
       this.vehicles.update((list) =>
         list.map((v) => (v.id === vehicle.id ? { ...v, status: nextStatus } : v)),
       );
@@ -232,6 +243,33 @@ export class VehiclesList {
       `${vehicle.make} ${vehicle.model} marked as ${nextStatus}`,
       'Dismiss',
       { duration: 3000 },
+    );
+  }
+
+  protected async deleteVehicle(vehicle: Vehicle): Promise<void> {
+    if (!vehicle.id) {
+      return;
+    }
+    try {
+      await this.apiService.client.v1.vehicles.byVehicleId(vehicle.id).delete();
+    } catch (err: unknown) {
+      if (this.apiService.isPreconditionFailed(err)) {
+        const snack = this.snackBar.open(
+          'Vehicle record was modified by another dispatcher (412 Conflict).',
+          'Reload Latest',
+          { duration: 6000 },
+        );
+        snack.onAction().subscribe(() => {
+          void this.loadVehicles();
+        });
+        return;
+      }
+    }
+    this.vehicles.update((list) => list.filter((v) => v.id !== vehicle.id));
+    this.snackBar.open(
+      `Removed ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+      'Dismiss',
+      { duration: 3500 },
     );
   }
 
@@ -247,7 +285,17 @@ export class VehiclesList {
         );
         return;
       }
-    } catch {
+    } catch (err: unknown) {
+      if (this.apiService.isConflictError(err) || this.apiService.isValidationError(err)) {
+        const detail = this.apiService.getProblemDetail(
+          err,
+          'A vehicle with the same VIN or license plate already exists.',
+        );
+        this.snackBar.open(detail, 'Dismiss', { duration: 5000 });
+        return;
+      }
+
+      this.apiService.backendConnected.set(false);
       const localVehicle: Vehicle = {
         id: crypto.randomUUID(),
         ...payload,
@@ -283,6 +331,16 @@ export class VehiclesList {
         return;
       }
 
+      if (this.apiService.isConflictError(err) || this.apiService.isValidationError(err)) {
+        const detail = this.apiService.getProblemDetail(
+          err,
+          'Could not update vehicle due to a duplicate VIN or license plate.',
+        );
+        this.snackBar.open(detail, 'Dismiss', { duration: 5000 });
+        return;
+      }
+
+      this.apiService.backendConnected.set(false);
       this.vehicles.update((list) =>
         list.map((v) => (v.id === vehicleId ? { ...v, ...payload } : v)),
       );

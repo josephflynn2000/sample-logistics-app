@@ -1,7 +1,11 @@
 import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { FetchRequestAdapter, HttpClient } from '@microsoft/kiota-http-fetchlibrary';
-import { AnonymousAuthenticationProvider } from '@microsoft/kiota-abstractions';
+import {
+  AnonymousAuthenticationProvider,
+  type SerializationWriterFactoryRegistry,
+} from '@microsoft/kiota-abstractions';
+import { JsonSerializationWriterFactory } from '@microsoft/kiota-serialization-json';
 import {
   createApiClient,
   type ApiClient,
@@ -28,11 +32,14 @@ export class ApiClientService {
       const requestInit: RequestInit = { ...init };
       const headers = new Headers(requestInit.headers);
 
-      // Automatically attach If-Match ETag header on PUT / PATCH requests
+      // Automatically attach If-Match ETag header on PUT / PATCH / DELETE requests
       const method = (requestInit.method ?? 'GET').toUpperCase();
-      const resourceId = this.extractResourceId(url);
-      if ((method === 'PUT' || method === 'PATCH') && resourceId) {
-        const cachedEtag = this.etagCache.get(resourceId);
+      const requestResourceId = this.extractResourceId(url);
+      if (
+        (method === 'PUT' || method === 'PATCH' || method === 'DELETE') &&
+        requestResourceId
+      ) {
+        const cachedEtag = this.etagCache.get(requestResourceId);
         if (cachedEtag && !headers.has('If-Match')) {
           headers.set('If-Match', cachedEtag);
         }
@@ -42,10 +49,16 @@ export class ApiClientService {
       const response = await fetch(url, requestInit);
       this.backendConnected.set(true);
 
-      // Capture ETag header from response for optimistic concurrency
+      // Capture ETag header from response or Location header (for 201 Created)
       const etag = response.headers.get('ETag') ?? response.headers.get('etag');
-      if (etag && resourceId) {
-        this.etagCache.set(resourceId, etag);
+      const locationHeader =
+        response.headers.get('Location') ?? response.headers.get('location');
+      const resolvedId =
+        requestResourceId ??
+        (locationHeader ? this.extractResourceId(locationHeader) : null);
+
+      if (etag && resolvedId) {
+        this.etagCache.set(resolvedId, etag);
       }
 
       return response;
@@ -58,6 +71,17 @@ export class ApiClientService {
         : 'http://localhost:5045';
 
     this.client = createApiClient(adapter);
+
+    // Register JSON Merge Patch (RFC 7396) content-type serializer for Kiota PATCH endpoints
+    const writerRegistry =
+      adapter.getSerializationWriterFactory() as SerializationWriterFactoryRegistry;
+    if (writerRegistry?.contentTypeAssociatedFactories) {
+      const jsonFactory = new JsonSerializationWriterFactory();
+      writerRegistry.contentTypeAssociatedFactories.set('application/merge-patch+json', {
+        getValidContentType: () => 'application/merge-patch+json',
+        getSerializationWriter: () => jsonFactory.getSerializationWriter('application/json'),
+      });
+    }
   }
 
   public setETag(resourceId: string, etag: string): void {
@@ -68,16 +92,51 @@ export class ApiClientService {
     return this.etagCache.get(resourceId);
   }
 
-  public isPreconditionFailed(error: unknown): boolean {
+  public getStatusCode(error: unknown): number | null {
     if (!error || typeof error !== 'object') {
-      return false;
+      return null;
     }
     const errRecord = error as Record<string, unknown>;
-    return (
-      errRecord['responseStatusCode'] === 412 ||
-      errRecord['status'] === 412 ||
-      (typeof errRecord['message'] === 'string' && errRecord['message'].includes('412'))
-    );
+    if (typeof errRecord['responseStatusCode'] === 'number') {
+      return errRecord['responseStatusCode'];
+    }
+    if (typeof errRecord['status'] === 'number') {
+      return errRecord['status'];
+    }
+    return null;
+  }
+
+  public isPreconditionFailed(error: unknown): boolean {
+    const code = this.getStatusCode(error);
+    if (code === 412) {
+      return true;
+    }
+    if (error && typeof error === 'object') {
+      const msg = (error as Record<string, unknown>)['message'];
+      return typeof msg === 'string' && msg.includes('412');
+    }
+    return false;
+  }
+
+  public isConflictError(error: unknown): boolean {
+    return this.getStatusCode(error) === 409;
+  }
+
+  public isValidationError(error: unknown): boolean {
+    return this.getStatusCode(error) === 400;
+  }
+
+  public getProblemDetail(error: unknown, fallback: string): string {
+    if (error && typeof error === 'object') {
+      const errRecord = error as Record<string, unknown>;
+      if (typeof errRecord['detail'] === 'string' && errRecord['detail'].length > 0) {
+        return errRecord['detail'];
+      }
+      if (typeof errRecord['title'] === 'string' && errRecord['title'].length > 0) {
+        return errRecord['title'];
+      }
+    }
+    return fallback;
   }
 
   private extractResourceId(url: string): string | null {

@@ -166,6 +166,17 @@
               <mat-icon>edit</mat-icon>
               <span>Specs</span>
             </button>
+
+            <button
+              mat-icon-button
+              type="button"
+              color="warn"
+              (click)="deleteVehicle(vehicle)"
+              matTooltip="Remove vehicle from fleet"
+              [attr.aria-label]="'Remove ' + vehicle.year + ' ' + vehicle.make + ' ' + vehicle.model"
+            >
+              <mat-icon>delete_outline</mat-icon>
+            </button>
           </div>
         </article>
       }

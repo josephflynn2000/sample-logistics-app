@@ -193,12 +193,46 @@ export class RoutesList {
       if (updated) {
         this.routes.update((list) => list.map((r) => (r.id === route.id ? updated : r)));
       }
-    } catch {
+    } catch (err: unknown) {
+      if (this.apiService.isPreconditionFailed(err)) {
+        const snack = this.snackBar.open(
+          'Route was modified by another dispatcher (412 Conflict).',
+          'Reload Latest',
+          { duration: 6000 },
+        );
+        snack.onAction().subscribe(() => {
+          void this.loadRoutes();
+        });
+        return;
+      }
       this.routes.update((list) =>
         list.map((r) => (r.id === route.id ? { ...r, status: nextStatus } : r)),
       );
     }
     this.snackBar.open(`Route ${route.code} set to ${nextStatus}`, 'OK', { duration: 3000 });
+  }
+
+  protected async deleteRoute(route: Route): Promise<void> {
+    if (!route.id) {
+      return;
+    }
+    try {
+      await this.apiService.client.v1.routes.byRouteId(route.id).delete();
+    } catch (err: unknown) {
+      if (this.apiService.isPreconditionFailed(err)) {
+        const snack = this.snackBar.open(
+          'Route was modified by another dispatcher (412 Conflict).',
+          'Reload Latest',
+          { duration: 6000 },
+        );
+        snack.onAction().subscribe(() => {
+          void this.loadRoutes();
+        });
+        return;
+      }
+    }
+    this.routes.update((list) => list.filter((r) => r.id !== route.id));
+    this.snackBar.open(`Removed route ${route.code}`, 'Dismiss', { duration: 3500 });
   }
 
   private async createRoute(payload: RouteEditorResult): Promise<void> {
@@ -209,7 +243,17 @@ export class RoutesList {
         this.snackBar.open(`Route ${created.code} created`, 'Close', { duration: 3500 });
         return;
       }
-    } catch {
+    } catch (err: unknown) {
+      if (this.apiService.isConflictError(err) || this.apiService.isValidationError(err)) {
+        const detail = this.apiService.getProblemDetail(
+          err,
+          'A route with the same code already exists or waypoints are invalid.',
+        );
+        this.snackBar.open(detail, 'Dismiss', { duration: 5000 });
+        return;
+      }
+
+      this.apiService.backendConnected.set(false);
       const localRoute: Route = {
         id: crypto.randomUUID(),
         ...payload,
@@ -241,6 +285,16 @@ export class RoutesList {
         return;
       }
 
+      if (this.apiService.isConflictError(err) || this.apiService.isValidationError(err)) {
+        const detail = this.apiService.getProblemDetail(
+          err,
+          'Could not update route due to a conflict or validation error.',
+        );
+        this.snackBar.open(detail, 'Dismiss', { duration: 5000 });
+        return;
+      }
+
+      this.apiService.backendConnected.set(false);
       this.routes.update((list) =>
         list.map((r) => (r.id === routeId ? { ...r, ...payload } : r)),
       );
