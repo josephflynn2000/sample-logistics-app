@@ -9,6 +9,7 @@ var backend = builder.AddProject<Projects.Logistics_Backend>("Backend");
 
 builder.AddJavaScriptApp("Frontend", "../..", runScriptName: "start")
     .WithHttpEndpoint(env: "PORT")
+    .WithEnvironment("BACKEND_PORT", backend.GetEndpoint("http").Property(EndpointProperty.Port))
     .WithReference(backend)
     .WaitFor(backend);
 

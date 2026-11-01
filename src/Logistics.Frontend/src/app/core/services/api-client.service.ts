@@ -47,7 +47,7 @@ export class ApiClientService {
       requestInit.headers = headers;
 
       const response = await fetch(url, requestInit);
-      this.backendConnected.set(true);
+      this.backendConnected.set(response.status < 500);
 
       // Capture ETag header from response or Location header (for 201 Created)
       const etag = response.headers.get('ETag') ?? response.headers.get('etag');
@@ -65,10 +65,14 @@ export class ApiClientService {
     });
 
     const adapter = new FetchRequestAdapter(authProvider, undefined, undefined, httpClient);
+    const backendPort =
+      (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
+        'BACKEND_PORT'
+      ] ?? '5045';
     adapter.baseUrl =
       this.isBrowser && typeof window !== 'undefined'
         ? window.location.origin
-        : 'http://localhost:5045';
+        : `http://localhost:${backendPort}`;
 
     this.client = createApiClient(adapter);
 
