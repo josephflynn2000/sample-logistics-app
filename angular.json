@@ -72,7 +72,7 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "proxyConfig": "src/Logistics.Frontend/proxy.conf.json",
+            "proxyConfig": "src/Logistics.Frontend/proxy.conf.js",
             "allowedHosts": [
               "localhost",
               ".localhost",
