@@ -156,6 +156,13 @@ public static class VehicleExtensions
         }
     }
 
+    public static DateTimeOffset NextUpdatedAt(this Vehicle vehicle)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        long minNextTicks = ((vehicle.UpdatedAt.UtcTicks / 1000) + 1) * 1000;
+        return now.UtcTicks >= minNextTicks ? now : new DateTimeOffset(minNextTicks, TimeSpan.Zero);
+    }
+
     public static string GetETag(this Vehicle vehicle)
     {
         long normalizedTicks = vehicle.UpdatedAt.UtcTicks / 1000;

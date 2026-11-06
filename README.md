@@ -91,13 +91,26 @@ dotnet run --project src/Logistics.AppHost --environment Production
 
 ### Observability & Managing Resources
 
+`Logistics.Backend` references `Logistics.ServiceDefaults` (`src/Logistics.ServiceDefaults`) along with the Aspire EF Core client integrations (`CommunityToolkit.Aspire.Microsoft.EntityFrameworkCore.Sqlite` for Development and `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` for Staging/Production). This wires up:
+- **OpenTelemetry Metrics**: ASP.NET Core request latency, Kestrel, `HttpClient`, `.NET Runtime` (GC, allocations, thread pool, lock contention), and database client metrics.
+- **OpenTelemetry Distributed Tracing**: End-to-end HTTP request waterfalls with nested EF Core and database command spans.
+- **Structured Logging**: OpenTelemetry log export correlated with active trace and span IDs.
+- **Health Checks**: Readiness (`/health`, including database connectivity check) and liveness (`/alive`) probes.
+
 Once Aspire starts:
 - The **Aspire Dashboard** URL is displayed in the terminal (or opened in your browser), where you can view live OpenTelemetry traces, metrics, structured logs, and inspect resource states (`Frontend`, `Backend`, and `postgres` when in Staging/Production).
 - Inspect running resources via CLI:
   ```bash
   aspire ps
+  aspire describe
   ```
-- View real-time logs from individual resources:
+- Inspect OpenTelemetry traces, spans, and structured logs via CLI:
+  ```bash
+  aspire otel traces Backend
+  aspire otel spans Backend --trace-id <trace-id>
+  aspire otel logs Backend
+  ```
+- View real-time console logs from individual resources:
   ```bash
   aspire logs Backend
   aspire logs postgres
@@ -106,6 +119,17 @@ Once Aspire starts:
   ```bash
   aspire stop
   ```
+
+#### Running `Logistics.Backend` Standalone
+
+The backend also runs standalone without the Aspire AppHost:
+```bash
+dotnet run --project src/Logistics.Backend
+```
+To view OpenTelemetry traces, metrics, and logs when running `Logistics.Backend` standalone (e.g., during load testing of a `Release` build), launch the standalone Aspire Dashboard and pass `OTEL_EXPORTER_OTLP_ENDPOINT`:
+```bash
+aspire dashboard run
+```
 
 ## API Specification & Testing
 

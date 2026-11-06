@@ -8,7 +8,8 @@ using Microsoft.Extensions.Hosting;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var backend = builder.AddProject<Projects.Logistics_Backend>("Backend");
+var backend = builder.AddProject<Projects.Logistics_Backend>("Backend")
+    .WithHttpHealthCheck("/health");
 
 if (!builder.Environment.IsDevelopment())
 {

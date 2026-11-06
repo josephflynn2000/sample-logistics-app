@@ -101,8 +101,6 @@ public static class RouteApi
     {
         IQueryable<RouteEntity> filteredQuery = dbContext.Routes.AsNoTracking().ApplyFilters(request);
 
-        int totalCount = await filteredQuery.CountAsync(cancellationToken);
-
         if (!filteredQuery.TryApplyCursorAndOrdering(
                 request.OrderBy,
                 request.PageToken,
@@ -118,6 +116,16 @@ public static class RouteApi
         List<RouteEntity> routes = await pagedQuery
             .Take(pageSize + 1)
             .ToListAsync(cancellationToken);
+
+        int totalCount;
+        if (string.IsNullOrWhiteSpace(request.PageToken) && routes.Count <= pageSize)
+        {
+            totalCount = routes.Count;
+        }
+        else
+        {
+            totalCount = await filteredQuery.CountAsync(cancellationToken);
+        }
 
         string? nextPageToken = null;
         if (routes.Count > pageSize)
@@ -177,17 +185,6 @@ public static class RouteApi
             return TypedResults.Created($"/v1/routes/{cachedRoute.Id}", cachedRoute);
         }
 
-        bool exists = await dbContext.Routes
-            .AsNoTracking()
-            .AnyAsync(r => r.Code == createRoute.Code, cancellationToken);
-
-        if (exists)
-        {
-            return TypedResults.Problem(
-                detail: "A route with the same code already exists.",
-                statusCode: StatusCodes.Status409Conflict);
-        }
-
         DateTimeOffset now = DateTimeOffset.UtcNow;
         RouteEntity route = new()
         {
@@ -204,7 +201,16 @@ public static class RouteApi
         };
 
         dbContext.Routes.Add(route);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return TypedResults.Problem(
+                detail: "A route with the same code already exists.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
 
         if (cacheKey is not null)
         {
@@ -238,29 +244,48 @@ public static class RouteApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        bool hasConflict = await dbContext.Routes
-            .AsNoTracking()
-            .AnyAsync(
-                r => r.Id != routeId && r.Code == updateRoute.Code,
-                cancellationToken);
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
+        List<RouteWaypoint> orderedWaypoints = [.. updateRoute.Waypoints.OrderBy(w => w.SequenceNumber)];
 
-        if (hasConflict)
+        for (int attempt = 0; ; attempt++)
         {
-            return TypedResults.Problem(
-                detail: "A route with the same code already exists.",
-                statusCode: StatusCodes.Status409Conflict);
+            route.Code = updateRoute.Code;
+            route.Name = updateRoute.Name;
+            route.Description = updateRoute.Description;
+            route.Status = updateRoute.Status;
+            route.EstimatedDistanceKm = updateRoute.EstimatedDistanceKm;
+            route.EstimatedDurationMinutes = updateRoute.EstimatedDurationMinutes;
+            route.Waypoints = orderedWaypoints;
+            route.UpdatedAt = route.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(route).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(route).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested route was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return TypedResults.Problem(
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
+            }
+            catch (DbUpdateException)
+            {
+                return TypedResults.Problem(
+                    detail: "A route with the same code already exists.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
         }
-
-        route.Code = updateRoute.Code;
-        route.Name = updateRoute.Name;
-        route.Description = updateRoute.Description;
-        route.Status = updateRoute.Status;
-        route.EstimatedDistanceKm = updateRoute.EstimatedDistanceKm;
-        route.EstimatedDurationMinutes = updateRoute.EstimatedDurationMinutes;
-        route.Waypoints = [.. updateRoute.Waypoints.OrderBy(w => w.SequenceNumber)];
-        route.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = route.GetETag();
         return TypedResults.Ok(route);
@@ -289,37 +314,51 @@ public static class RouteApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        if (patchRoute.Code is not null && patchRoute.Code != route.Code)
-        {
-            bool codeConflict = await dbContext.Routes
-                .AsNoTracking()
-                .AnyAsync(
-                    r => r.Id != routeId && r.Code == patchRoute.Code,
-                    cancellationToken);
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
+        List<RouteWaypoint>? orderedWaypoints = patchRoute.Waypoints is not null
+            ? [.. patchRoute.Waypoints.OrderBy(w => w.SequenceNumber)]
+            : null;
 
-            if (codeConflict)
+        for (int attempt = 0; ; attempt++)
+        {
+            if (patchRoute.Code is not null) route.Code = patchRoute.Code;
+            if (patchRoute.Name is not null) route.Name = patchRoute.Name;
+            if (patchRoute.Description is not null) route.Description = patchRoute.Description;
+            if (patchRoute.Status.HasValue) route.Status = patchRoute.Status.Value;
+            if (patchRoute.EstimatedDistanceKm.HasValue) route.EstimatedDistanceKm = patchRoute.EstimatedDistanceKm.Value;
+            if (patchRoute.EstimatedDurationMinutes.HasValue) route.EstimatedDurationMinutes = patchRoute.EstimatedDurationMinutes.Value;
+            if (orderedWaypoints is not null) route.Waypoints = orderedWaypoints;
+
+            route.UpdatedAt = route.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(route).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(route).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested route was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return TypedResults.Problem(
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
+            }
+            catch (DbUpdateException)
             {
                 return TypedResults.Problem(
                     detail: "A route with the same code already exists.",
                     statusCode: StatusCodes.Status409Conflict);
             }
-
-            route.Code = patchRoute.Code;
         }
-
-        if (patchRoute.Name is not null) route.Name = patchRoute.Name;
-        if (patchRoute.Description is not null) route.Description = patchRoute.Description;
-        if (patchRoute.Status.HasValue) route.Status = patchRoute.Status.Value;
-        if (patchRoute.EstimatedDistanceKm.HasValue) route.EstimatedDistanceKm = patchRoute.EstimatedDistanceKm.Value;
-        if (patchRoute.EstimatedDurationMinutes.HasValue) route.EstimatedDurationMinutes = patchRoute.EstimatedDurationMinutes.Value;
-        if (patchRoute.Waypoints is not null)
-        {
-            route.Waypoints = [.. patchRoute.Waypoints.OrderBy(w => w.SequenceNumber)];
-        }
-
-        route.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = route.GetETag();
         return TypedResults.Ok(route);
@@ -331,6 +370,22 @@ public static class RouteApi
         [FromHeader(Name = "If-Match")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*")
+        {
+            int deleted = await dbContext.Routes
+                .Where(r => r.Id == routeId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            if (deleted == 0)
+            {
+                return TypedResults.Problem(
+                    detail: "The requested route was not found.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            return TypedResults.NoContent();
+        }
+
         RouteEntity? route = await dbContext.Routes.FindAsync([routeId], cancellationToken);
         if (route is null)
         {
@@ -347,7 +402,16 @@ public static class RouteApi
         }
 
         dbContext.Routes.Remove(route);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return TypedResults.Problem(
+                detail: "The resource was modified or deleted by another concurrent request.",
+                statusCode: StatusCodes.Status412PreconditionFailed);
+        }
 
         return TypedResults.NoContent();
     }
@@ -358,9 +422,11 @@ public static class RouteApi
         HttpContext httpContext,
         CancellationToken cancellationToken = default)
     {
-        RouteEntity? route = await dbContext.Routes
+        var route = await dbContext.Routes
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Id == routeId, cancellationToken);
+            .Where(r => r.Id == routeId)
+            .Select(r => new { r.Id, r.UpdatedAt, r.Waypoints })
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (route is null)
         {
@@ -369,7 +435,7 @@ public static class RouteApi
                 statusCode: StatusCodes.Status404NotFound);
         }
 
-        httpContext.Response.Headers.ETag = route.GetETag();
+        httpContext.Response.Headers.ETag = RouteExtensions.ComputeETag(route.Id, route.UpdatedAt);
         var response = new RouteWaypointsResponse
         {
             RouteId = route.Id,
@@ -402,10 +468,36 @@ public static class RouteApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        route.Waypoints = [.. replaceWaypoints.Waypoints.OrderBy(w => w.SequenceNumber)];
-        route.UpdatedAt = DateTimeOffset.UtcNow;
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
+        List<RouteWaypoint> orderedWaypoints = [.. replaceWaypoints.Waypoints.OrderBy(w => w.SequenceNumber)];
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        for (int attempt = 0; ; attempt++)
+        {
+            route.Waypoints = orderedWaypoints;
+            route.UpdatedAt = route.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(route).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(route).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested route was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return TypedResults.Problem(
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
+            }
+        }
 
         httpContext.Response.Headers.ETag = route.GetETag();
         var response = new RouteWaypointsResponse
