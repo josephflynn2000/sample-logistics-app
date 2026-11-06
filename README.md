@@ -15,6 +15,98 @@ At its simplest, the application consists of:
 - **Web UI**: A web page that allows users to view and interact with logistics data.
 - **Web API**: A backend service that serves the web page and exposes RESTful APIs for performing CRUD operations on vehicles, drivers, and routes.
 
+## Running with .NET Aspire
+
+The application uses [.NET Aspire](https://learn.microsoft.com/dotnet/aspire/) for distributed orchestration across the Angular frontend (`Frontend`), ASP.NET Core Web API (`Backend`), and database dependencies.
+
+The database provider is dynamically selected based on the runtime environment:
+- **Development**: Uses an embedded SQLite database (`./obj/app.db`) for fast local iteration without requiring container engines.
+- **Staging / Production**: Provisions and connects to a containerized PostgreSQL database (`LogisticsDatabase`) managed by Aspire.
+
+### Environments & Database Matrix
+
+| Environment | Database Provider | Container Engine Required? | Target / Connection |
+| :--- | :--- | :--- | :--- |
+| **Development** (`Development`) | SQLite | No | `./obj/app.db` |
+| **Staging** (`Staging`) | PostgreSQL | Yes (Docker / Podman) | Aspire PostgreSQL Container (`LogisticsDatabase`) |
+| **Production** (`Production`) | PostgreSQL | Yes (Docker / Podman / Cloud) | Aspire PostgreSQL Container / Cloud DB (`LogisticsDatabase`) |
+
+---
+
+### 1. Development (Default)
+
+Runs the Angular frontend and .NET backend locally with SQLite. No Docker or PostgreSQL installation required.
+
+Using Aspire CLI:
+```bash
+aspire start
+```
+
+Or using the .NET CLI:
+```bash
+dotnet run --project src/Logistics.AppHost
+```
+
+---
+
+### 2. Staging
+
+Runs the application with containerized PostgreSQL orchestrated by Aspire. Aspire pulls and starts the PostgreSQL container, creates the `LogisticsDatabase`, injects the connection string into the Backend, and runs Entity Framework Core with the `Npgsql` PostgreSQL provider.
+
+Using Aspire CLI:
+```bash
+DOTNET_ENVIRONMENT=Staging aspire start
+```
+*Or passing arguments to the AppHost:*
+```bash
+aspire start -- --environment Staging
+```
+
+Or using the .NET CLI:
+```bash
+dotnet run --project src/Logistics.AppHost --environment Staging
+```
+
+---
+
+### 3. Production
+
+Runs under production configuration with containerized PostgreSQL and production logging/settings.
+
+Using Aspire CLI:
+```bash
+DOTNET_ENVIRONMENT=Production aspire start
+```
+*Or passing arguments to the AppHost:*
+```bash
+aspire start -- --environment Production
+```
+
+Or using the .NET CLI:
+```bash
+dotnet run --project src/Logistics.AppHost --environment Production
+```
+
+---
+
+### Observability & Managing Resources
+
+Once Aspire starts:
+- The **Aspire Dashboard** URL is displayed in the terminal (or opened in your browser), where you can view live OpenTelemetry traces, metrics, structured logs, and inspect resource states (`Frontend`, `Backend`, and `postgres` when in Staging/Production).
+- Inspect running resources via CLI:
+  ```bash
+  aspire ps
+  ```
+- View real-time logs from individual resources:
+  ```bash
+  aspire logs Backend
+  aspire logs postgres
+  ```
+- Stop the Aspire orchestrator:
+  ```bash
+  aspire stop
+  ```
+
 ## API Specification & Testing
 
 - **OpenAPI Specification**: [`docs/openapi/openapi.yaml`](docs/openapi/openapi.yaml) defines the v1 REST API contract for `/v1/vehicles`, `/v1/drivers`, and `/v1/routes` (including `/v1/routes/{routeId}/waypoints`), designed for Swagger tooling and DocFX documentation generation.
