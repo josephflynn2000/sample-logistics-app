@@ -3,9 +3,9 @@ using Logistics.Backend.Apis;
 using Logistics.Backend.Extensions;
 using Logistics.Backend.Infrastructure;
 
-using Microsoft.EntityFrameworkCore;
-
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddServiceDefaults();
 
 builder.Services.AddValidation();
 builder.Services.AddProblemDetails();
@@ -30,10 +30,7 @@ withApiVersioning.AddLogisticsOpenApi();
 
 if (builder.Environment.IsDevelopment())
 {
-    builder.Services.AddDbContext<LogisticsContext>(options =>
-    {
-        options.UseSqlite(builder.Configuration.GetConnectionString("LogisticsDatabase"));
-    });
+    builder.AddSqliteDbContext<LogisticsContext>("LogisticsDatabase");
 }
 else
 {
@@ -50,6 +47,7 @@ using (IServiceScope scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
+app.MapDefaultEndpoints();
 app.MapOpenApi().WithDocumentPerVersion();
 app.MapOpenApi("/openapi/{documentName}.yaml").WithDocumentPerVersion();
 
