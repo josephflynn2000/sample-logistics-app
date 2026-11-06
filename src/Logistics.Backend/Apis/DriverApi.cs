@@ -81,8 +81,6 @@ public static class DriverApi
     {
         IQueryable<Driver> filteredQuery = dbContext.Drivers.AsNoTracking().ApplyFilters(request);
 
-        int totalCount = await filteredQuery.CountAsync(cancellationToken);
-
         if (!filteredQuery.TryApplyCursorAndOrdering(
                 request.OrderBy,
                 request.PageToken,
@@ -98,6 +96,16 @@ public static class DriverApi
         List<Driver> drivers = await pagedQuery
             .Take(pageSize + 1)
             .ToListAsync(cancellationToken);
+
+        int totalCount;
+        if (string.IsNullOrWhiteSpace(request.PageToken) && drivers.Count <= pageSize)
+        {
+            totalCount = drivers.Count;
+        }
+        else
+        {
+            totalCount = await filteredQuery.CountAsync(cancellationToken);
+        }
 
         string? nextPageToken = null;
         if (drivers.Count > pageSize)
@@ -157,21 +165,6 @@ public static class DriverApi
             return TypedResults.Created($"/v1/drivers/{cachedDriver.Id}", cachedDriver);
         }
 
-        bool exists = await dbContext.Drivers
-            .AsNoTracking()
-            .AnyAsync(
-                d => d.EmployeeNumber == createDriver.EmployeeNumber ||
-                     d.Email == createDriver.Email ||
-                     d.LicenseNumber == createDriver.LicenseNumber,
-                cancellationToken);
-
-        if (exists)
-        {
-            return TypedResults.Problem(
-                detail: "A driver with the same employee number, email, or license number already exists.",
-                statusCode: StatusCodes.Status409Conflict);
-        }
-
         DateTimeOffset now = DateTimeOffset.UtcNow;
         Driver driver = new()
         {
@@ -190,7 +183,16 @@ public static class DriverApi
         };
 
         dbContext.Drivers.Add(driver);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return TypedResults.Problem(
+                detail: "A driver with the same employee number, email, or license number already exists.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
 
         if (cacheKey is not null)
         {
@@ -224,26 +226,41 @@ public static class DriverApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        bool hasConflict = await dbContext.Drivers
-            .AsNoTracking()
-            .AnyAsync(
-                d => d.Id != driverId &&
-                     (d.EmployeeNumber == updateDriver.EmployeeNumber ||
-                      d.Email == updateDriver.Email ||
-                      d.LicenseNumber == updateDriver.LicenseNumber),
-                cancellationToken);
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
 
-        if (hasConflict)
+        for (int attempt = 0; ; attempt++)
         {
-            return TypedResults.Problem(
-                detail: "A driver with the same employee number, email, or license number already exists.",
-                statusCode: StatusCodes.Status409Conflict);
+            dbContext.Entry(driver).CurrentValues.SetValues(updateDriver);
+            driver.UpdatedAt = driver.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(driver).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(driver).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested driver was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return TypedResults.Problem(
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
+            }
+            catch (DbUpdateException)
+            {
+                return TypedResults.Problem(
+                    detail: "A driver with the same employee number, email, or license number already exists.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
         }
-
-        dbContext.Entry(driver).CurrentValues.SetValues(updateDriver);
-        driver.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = driver.GetETag();
         return TypedResults.Ok(driver);
@@ -272,52 +289,49 @@ public static class DriverApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        if (patchDriver.Email is not null && patchDriver.Email != driver.Email)
-        {
-            bool emailConflict = await dbContext.Drivers
-                .AsNoTracking()
-                .AnyAsync(
-                    d => d.Id != driverId && d.Email == patchDriver.Email,
-                    cancellationToken);
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
 
-            if (emailConflict)
+        for (int attempt = 0; ; attempt++)
+        {
+            if (patchDriver.Email is not null) driver.Email = patchDriver.Email;
+            if (patchDriver.LicenseNumber is not null) driver.LicenseNumber = patchDriver.LicenseNumber;
+            if (patchDriver.FirstName is not null) driver.FirstName = patchDriver.FirstName;
+            if (patchDriver.LastName is not null) driver.LastName = patchDriver.LastName;
+            if (patchDriver.Phone is not null) driver.Phone = patchDriver.Phone;
+            if (patchDriver.LicenseClass.HasValue) driver.LicenseClass = patchDriver.LicenseClass.Value;
+            if (patchDriver.LicenseExpiryDate is not null) driver.LicenseExpiryDate = patchDriver.LicenseExpiryDate;
+            if (patchDriver.Status.HasValue) driver.Status = patchDriver.Status.Value;
+
+            driver.UpdatedAt = driver.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(driver).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(driver).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested driver was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
             {
                 return TypedResults.Problem(
-                    detail: "A driver with the same email already exists.",
-                    statusCode: StatusCodes.Status409Conflict);
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
             }
-
-            driver.Email = patchDriver.Email;
-        }
-
-        if (patchDriver.LicenseNumber is not null && patchDriver.LicenseNumber != driver.LicenseNumber)
-        {
-            bool licenseConflict = await dbContext.Drivers
-                .AsNoTracking()
-                .AnyAsync(
-                    d => d.Id != driverId && d.LicenseNumber == patchDriver.LicenseNumber,
-                    cancellationToken);
-
-            if (licenseConflict)
+            catch (DbUpdateException)
             {
                 return TypedResults.Problem(
-                    detail: "A driver with the same license number already exists.",
+                    detail: "A driver with the same email or license number already exists.",
                     statusCode: StatusCodes.Status409Conflict);
             }
-
-            driver.LicenseNumber = patchDriver.LicenseNumber;
         }
-
-        if (patchDriver.FirstName is not null) driver.FirstName = patchDriver.FirstName;
-        if (patchDriver.LastName is not null) driver.LastName = patchDriver.LastName;
-        if (patchDriver.Phone is not null) driver.Phone = patchDriver.Phone;
-        if (patchDriver.LicenseClass.HasValue) driver.LicenseClass = patchDriver.LicenseClass.Value;
-        if (patchDriver.LicenseExpiryDate is not null) driver.LicenseExpiryDate = patchDriver.LicenseExpiryDate;
-        if (patchDriver.Status.HasValue) driver.Status = patchDriver.Status.Value;
-
-        driver.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = driver.GetETag();
         return TypedResults.Ok(driver);
@@ -329,6 +343,22 @@ public static class DriverApi
         [FromHeader(Name = "If-Match")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*")
+        {
+            int deleted = await dbContext.Drivers
+                .Where(d => d.Id == driverId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            if (deleted == 0)
+            {
+                return TypedResults.Problem(
+                    detail: "The requested driver was not found.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            return TypedResults.NoContent();
+        }
+
         Driver? driver = await dbContext.Drivers.FindAsync([driverId], cancellationToken);
         if (driver is null)
         {
@@ -345,7 +375,16 @@ public static class DriverApi
         }
 
         dbContext.Drivers.Remove(driver);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return TypedResults.Problem(
+                detail: "The resource was modified or deleted by another concurrent request.",
+                statusCode: StatusCodes.Status412PreconditionFailed);
+        }
 
         return TypedResults.NoContent();
     }

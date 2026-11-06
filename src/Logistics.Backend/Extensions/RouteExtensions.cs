@@ -147,10 +147,20 @@ public static class RouteExtensions
         }
     }
 
-    public static string GetETag(this RouteEntity route)
+    public static DateTimeOffset NextUpdatedAt(this RouteEntity route)
     {
-        long normalizedTicks = route.UpdatedAt.UtcTicks / 1000;
-        byte[] bytes = Encoding.UTF8.GetBytes($"{route.Id:N}:{normalizedTicks}");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        long minNextTicks = ((route.UpdatedAt.UtcTicks / 1000) + 1) * 1000;
+        return now.UtcTicks >= minNextTicks ? now : new DateTimeOffset(minNextTicks, TimeSpan.Zero);
+    }
+
+    public static string GetETag(this RouteEntity route) =>
+        ComputeETag(route.Id, route.UpdatedAt);
+
+    public static string ComputeETag(Guid id, DateTimeOffset updatedAt)
+    {
+        long normalizedTicks = updatedAt.UtcTicks / 1000;
+        byte[] bytes = Encoding.UTF8.GetBytes($"{id:N}:{normalizedTicks}");
         string hash = Convert.ToHexStringLower(SHA256.HashData(bytes))[..16];
         return $"\"v1-{hash}\"";
     }

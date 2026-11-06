@@ -152,6 +152,13 @@ public static class DriverExtensions
         }
     }
 
+    public static DateTimeOffset NextUpdatedAt(this Driver driver)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        long minNextTicks = ((driver.UpdatedAt.UtcTicks / 1000) + 1) * 1000;
+        return now.UtcTicks >= minNextTicks ? now : new DateTimeOffset(minNextTicks, TimeSpan.Zero);
+    }
+
     public static string GetETag(this Driver driver)
     {
         long normalizedTicks = driver.UpdatedAt.UtcTicks / 1000;

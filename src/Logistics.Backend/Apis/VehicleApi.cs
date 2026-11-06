@@ -81,8 +81,6 @@ public static class VehicleApi
     {
         IQueryable<Vehicle> filteredQuery = dbContext.Vehicles.AsNoTracking().ApplyFilters(request);
 
-        int totalCount = await filteredQuery.CountAsync(cancellationToken);
-
         if (!filteredQuery.TryApplyCursorAndOrdering(
                 request.OrderBy,
                 request.PageToken,
@@ -98,6 +96,16 @@ public static class VehicleApi
         List<Vehicle> vehicles = await pagedQuery
             .Take(pageSize + 1)
             .ToListAsync(cancellationToken);
+
+        int totalCount;
+        if (string.IsNullOrWhiteSpace(request.PageToken) && vehicles.Count <= pageSize)
+        {
+            totalCount = vehicles.Count;
+        }
+        else
+        {
+            totalCount = await filteredQuery.CountAsync(cancellationToken);
+        }
 
         string? nextPageToken = null;
         if (vehicles.Count > pageSize)
@@ -157,19 +165,6 @@ public static class VehicleApi
             return TypedResults.Created($"/v1/vehicles/{cachedVehicle.Id}", cachedVehicle);
         }
 
-        bool exists = await dbContext.Vehicles
-            .AsNoTracking()
-            .AnyAsync(
-                v => v.Vin == createVehicle.Vin || v.LicensePlate == createVehicle.LicensePlate,
-                cancellationToken);
-
-        if (exists)
-        {
-            return TypedResults.Problem(
-                detail: "A vehicle with the same VIN or license plate already exists.",
-                statusCode: StatusCodes.Status409Conflict);
-        }
-
         DateTimeOffset now = DateTimeOffset.UtcNow;
         Vehicle vehicle = new()
         {
@@ -188,7 +183,16 @@ public static class VehicleApi
         };
 
         dbContext.Vehicles.Add(vehicle);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return TypedResults.Problem(
+                detail: "A vehicle with the same VIN or license plate already exists.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
 
         if (cacheKey is not null)
         {
@@ -222,24 +226,41 @@ public static class VehicleApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        bool hasConflict = await dbContext.Vehicles
-            .AsNoTracking()
-            .AnyAsync(
-                v => v.Id != vehicleId &&
-                     (v.Vin == updateVehicle.Vin || v.LicensePlate == updateVehicle.LicensePlate),
-                cancellationToken);
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
 
-        if (hasConflict)
+        for (int attempt = 0; ; attempt++)
         {
-            return TypedResults.Problem(
-                detail: "A vehicle with the same VIN or license plate already exists.",
-                statusCode: StatusCodes.Status409Conflict);
+            dbContext.Entry(vehicle).CurrentValues.SetValues(updateVehicle);
+            vehicle.UpdatedAt = vehicle.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(vehicle).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(vehicle).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested vehicle was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return TypedResults.Problem(
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
+            }
+            catch (DbUpdateException)
+            {
+                return TypedResults.Problem(
+                    detail: "A vehicle with the same VIN or license plate already exists.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
         }
-
-        dbContext.Entry(vehicle).CurrentValues.SetValues(updateVehicle);
-        vehicle.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = vehicle.GetETag();
         return TypedResults.Ok(vehicle);
@@ -268,36 +289,49 @@ public static class VehicleApi
                 statusCode: StatusCodes.Status412PreconditionFailed);
         }
 
-        if (patchVehicle.LicensePlate is not null &&
-            patchVehicle.LicensePlate != vehicle.LicensePlate)
-        {
-            bool plateConflict = await dbContext.Vehicles
-                .AsNoTracking()
-                .AnyAsync(
-                    v => v.Id != vehicleId && v.LicensePlate == patchVehicle.LicensePlate,
-                    cancellationToken);
+        bool isUnconditional = string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*";
 
-            if (plateConflict)
+        for (int attempt = 0; ; attempt++)
+        {
+            if (patchVehicle.LicensePlate is not null) vehicle.LicensePlate = patchVehicle.LicensePlate;
+            if (patchVehicle.Make is not null) vehicle.Make = patchVehicle.Make;
+            if (patchVehicle.Model is not null) vehicle.Model = patchVehicle.Model;
+            if (patchVehicle.Year.HasValue) vehicle.Year = patchVehicle.Year.Value;
+            if (patchVehicle.Type.HasValue) vehicle.Type = patchVehicle.Type.Value;
+            if (patchVehicle.CapacityKg.HasValue) vehicle.CapacityKg = patchVehicle.CapacityKg.Value;
+            if (patchVehicle.CapacityVolumeM3.HasValue) vehicle.CapacityVolumeM3 = patchVehicle.CapacityVolumeM3.Value;
+            if (patchVehicle.Status.HasValue) vehicle.Status = patchVehicle.Status.Value;
+
+            vehicle.UpdatedAt = vehicle.NextUpdatedAt();
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (isUnconditional && attempt < 2)
+            {
+                await dbContext.Entry(vehicle).ReloadAsync(cancellationToken);
+                if (dbContext.Entry(vehicle).State == EntityState.Detached)
+                {
+                    return TypedResults.Problem(
+                        detail: "The requested vehicle was not found.",
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return TypedResults.Problem(
+                    detail: "The resource was modified or deleted by another concurrent request.",
+                    statusCode: StatusCodes.Status412PreconditionFailed);
+            }
+            catch (DbUpdateException)
             {
                 return TypedResults.Problem(
                     detail: "A vehicle with the same license plate already exists.",
                     statusCode: StatusCodes.Status409Conflict);
             }
-
-            vehicle.LicensePlate = patchVehicle.LicensePlate;
         }
-
-        if (patchVehicle.Make is not null) vehicle.Make = patchVehicle.Make;
-        if (patchVehicle.Model is not null) vehicle.Model = patchVehicle.Model;
-        if (patchVehicle.Year.HasValue) vehicle.Year = patchVehicle.Year.Value;
-        if (patchVehicle.Type.HasValue) vehicle.Type = patchVehicle.Type.Value;
-        if (patchVehicle.CapacityKg.HasValue) vehicle.CapacityKg = patchVehicle.CapacityKg.Value;
-        if (patchVehicle.CapacityVolumeM3.HasValue) vehicle.CapacityVolumeM3 = patchVehicle.CapacityVolumeM3.Value;
-        if (patchVehicle.Status.HasValue) vehicle.Status = patchVehicle.Status.Value;
-
-        vehicle.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = vehicle.GetETag();
         return TypedResults.Ok(vehicle);
@@ -309,6 +343,22 @@ public static class VehicleApi
         [FromHeader(Name = "If-Match")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*")
+        {
+            int deleted = await dbContext.Vehicles
+                .Where(v => v.Id == vehicleId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            if (deleted == 0)
+            {
+                return TypedResults.Problem(
+                    detail: "The requested vehicle was not found.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            return TypedResults.NoContent();
+        }
+
         Vehicle? vehicle = await dbContext.Vehicles.FindAsync([vehicleId], cancellationToken);
         if (vehicle is null)
         {
@@ -325,7 +375,16 @@ public static class VehicleApi
         }
 
         dbContext.Vehicles.Remove(vehicle);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return TypedResults.Problem(
+                detail: "The resource was modified or deleted by another concurrent request.",
+                statusCode: StatusCodes.Status412PreconditionFailed);
+        }
 
         return TypedResults.NoContent();
     }

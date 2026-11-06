@@ -30,6 +30,9 @@ public class LogisticsContext(
             entity.HasIndex(v => v.LicensePlate).IsUnique();
             entity.HasIndex(v => new { v.CreatedAt, v.Id });
             entity.HasIndex(v => new { v.UpdatedAt, v.Id });
+            entity.HasIndex(v => new { v.Status, v.CreatedAt, v.Id });
+            entity.HasIndex(v => new { v.Type, v.CreatedAt, v.Id });
+            entity.HasIndex(v => v.CapacityKg);
 
             entity.Property(v => v.CreatedAt)
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
@@ -45,6 +48,8 @@ public class LogisticsContext(
             entity.HasIndex(d => d.LicenseNumber).IsUnique();
             entity.HasIndex(d => new { d.CreatedAt, d.Id });
             entity.HasIndex(d => new { d.UpdatedAt, d.Id });
+            entity.HasIndex(d => new { d.Status, d.CreatedAt, d.Id });
+            entity.HasIndex(d => new { d.LicenseClass, d.CreatedAt, d.Id });
 
             entity.Property(d => d.CreatedAt)
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
@@ -67,6 +72,7 @@ public class LogisticsContext(
             entity.HasIndex(r => r.Code).IsUnique();
             entity.HasIndex(r => new { r.CreatedAt, r.Id });
             entity.HasIndex(r => new { r.UpdatedAt, r.Id });
+            entity.HasIndex(r => new { r.Status, r.CreatedAt, r.Id });
 
             entity.Property(r => r.Waypoints)
                 .HasConversion(waypointsConverter, waypointsComparer);
