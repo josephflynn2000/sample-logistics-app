@@ -28,10 +28,17 @@ withApiVersioning.AddApiExplorer(options =>
 
 withApiVersioning.AddLogisticsOpenApi();
 
-builder.Services.AddDbContext<LogisticsContext>(options =>
+if (builder.Environment.IsDevelopment())
 {
-    options.UseSqlite(builder.Configuration.GetConnectionString("LogisticsDatabase"));
-});
+    builder.Services.AddDbContext<LogisticsContext>(options =>
+    {
+        options.UseSqlite(builder.Configuration.GetConnectionString("LogisticsDatabase"));
+    });
+}
+else
+{
+    builder.AddNpgsqlDbContext<LogisticsContext>(connectionName: "LogisticsDatabase");
+}
 var app = builder.Build();
 
 app.UseExceptionHandler();
