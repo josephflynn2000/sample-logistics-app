@@ -4,6 +4,10 @@ using System.Text.Json;
 
 using Logistics.Backend.Model.Routes;
 
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
 using RouteEntity = Logistics.Backend.Model.Routes.Route;
 
 namespace Logistics.Backend.Extensions;
@@ -185,6 +189,26 @@ public static class RouteExtensions
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    public static List<RouteWaypoint> IndexByPosition(this IReadOnlyList<RouteWaypoint> waypoints) =>
+        [.. waypoints.Select(static (w, index) => w with { SequenceNumber = index + 1 })];
+
+    public static bool IsUniqueCodeViolation(this DbUpdateException exception)
+    {
+        if (exception.InnerException is PostgresException pgEx)
+        {
+            return pgEx.SqlState == PostgresErrorCodes.UniqueViolation &&
+                   (pgEx.ConstraintName?.Contains("Code", StringComparison.OrdinalIgnoreCase) ?? true);
+        }
+
+        if (exception.InnerException is SqliteException sqliteEx)
+        {
+            return sqliteEx.SqliteErrorCode == 19 &&
+                   sqliteEx.Message.Contains("Routes.Code", StringComparison.OrdinalIgnoreCase);
         }
 
         return false;

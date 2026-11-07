@@ -5,7 +5,7 @@ namespace Logistics.Backend.Model.Routes;
 public sealed record class RouteWaypoint
 {
     [Range(1, int.MaxValue)]
-    public int SequenceNumber { get; set; }
+    public int SequenceNumber { get; set; } = 1;
 
     [Required]
     [StringLength(120, MinimumLength = 1)]
