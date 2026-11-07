@@ -1,11 +1,8 @@
-using System.Text.Json;
-
 using Logistics.Backend.Model.Drivers;
 using Logistics.Backend.Model.Routes;
 using Logistics.Backend.Model.Vehicles;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 using RouteEntity = Logistics.Backend.Model.Routes.Route;
@@ -57,15 +54,6 @@ public class LogisticsContext(
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
         });
 
-        ValueConverter<List<RouteWaypoint>, string> waypointsConverter = new(
-            v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-            v => JsonSerializer.Deserialize<List<RouteWaypoint>>(v, (JsonSerializerOptions?)null) ?? new List<RouteWaypoint>());
-
-        ValueComparer<List<RouteWaypoint>> waypointsComparer = new(
-            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
-            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-            c => c.ToList());
-
         modelBuilder.Entity<RouteEntity>(entity =>
         {
             entity.HasKey(r => r.Id);
@@ -74,13 +62,17 @@ public class LogisticsContext(
             entity.HasIndex(r => new { r.UpdatedAt, r.Id });
             entity.HasIndex(r => new { r.Status, r.CreatedAt, r.Id });
 
-            entity.Property(r => r.Waypoints)
-                .HasConversion(waypointsConverter, waypointsComparer);
-
             entity.Property(r => r.CreatedAt)
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
             entity.Property(r => r.UpdatedAt)
                 .HasConversion(new DateTimeOffsetToBinaryConverter());
+
+            entity.OwnsMany(r => r.Waypoints, wp =>
+            {
+                wp.ToTable("RouteStops");
+                wp.WithOwner().HasForeignKey("RouteId");
+                wp.HasKey("RouteId", nameof(RouteWaypoint.SequenceNumber));
+            });
         });
     }
 }

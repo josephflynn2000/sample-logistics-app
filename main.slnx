@@ -3,4 +3,7 @@
     <Project Path="src/Logistics.Backend/Logistics.Backend.csproj" />
     <Project Path="src/Logistics.ServiceDefaults/Logistics.ServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Logistics.Backend.IntegrationTests/Logistics.Backend.IntegrationTests.csproj" />
+  </Folder>
 </Solution>

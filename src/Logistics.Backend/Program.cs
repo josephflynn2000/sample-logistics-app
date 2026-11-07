@@ -78,3 +78,6 @@ app.MapDriverApi();
 app.MapRouteApi();
 
 app.Run();
+
+public partial class Program;
+
