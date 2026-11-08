@@ -12,12 +12,6 @@
     },
     "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "http://localhost:5045",
-      "description": "Local Development Server"
-    }
-  ],
   "paths": {
     "/v1/vehicles": {
       "post": {
@@ -51,21 +45,6 @@
         "responses": {
           "201": {
             "description": "Vehicle successfully registered.",
-            "headers": {
-              "Location": {
-                "description": "Canonical URI of the newly created resource.",
-                "schema": {
-                  "type": "string",
-                  "format": "uri"
-                }
-              },
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -243,14 +222,6 @@
         "responses": {
           "200": {
             "description": "Vehicle details.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -321,14 +292,6 @@
         "responses": {
           "200": {
             "description": "Vehicle successfully replaced.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -434,14 +397,6 @@
         "responses": {
           "200": {
             "description": "Vehicle successfully updated.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -598,21 +553,6 @@
         "responses": {
           "201": {
             "description": "Driver successfully registered.",
-            "headers": {
-              "Location": {
-                "description": "Canonical URI of the newly created resource.",
-                "schema": {
-                  "type": "string",
-                  "format": "uri"
-                }
-              },
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -776,14 +716,6 @@
         "responses": {
           "200": {
             "description": "Driver details.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -854,14 +786,6 @@
         "responses": {
           "200": {
             "description": "Driver successfully replaced.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -967,14 +891,6 @@
         "responses": {
           "200": {
             "description": "Driver successfully updated.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1131,21 +1047,6 @@
         "responses": {
           "201": {
             "description": "Route successfully registered.",
-            "headers": {
-              "Location": {
-                "description": "Canonical URI of the newly created resource.",
-                "schema": {
-                  "type": "string",
-                  "format": "uri"
-                }
-              },
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1301,14 +1202,6 @@
         "responses": {
           "200": {
             "description": "Route details.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1379,14 +1272,6 @@
         "responses": {
           "200": {
             "description": "Route successfully replaced.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1492,14 +1377,6 @@
         "responses": {
           "200": {
             "description": "Route successfully updated.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1647,14 +1524,6 @@
         "responses": {
           "200": {
             "description": "Ordered sequence of waypoints for the route.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1725,14 +1594,6 @@
         "responses": {
           "200": {
             "description": "Ordered waypoints successfully replaced.",
-            "headers": {
-              "ETag": {
-                "description": "Opaque entity tag representing the current version of the resource for optimistic concurrency control.",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "schema": {

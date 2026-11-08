@@ -4,14 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
     <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../docs/openapi</OpenApiDocumentsDirectory>
     <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
-    <OpenApiGenerateDocumentsOnBuild>false</OpenApiGenerateDocumentsOnBuild>
   </PropertyGroup>
-
-  <Target Name="GenerateOpenApiDocumentsOnBuildInDev" AfterTargets="Build">
-    <Exec Command="DOTNET_ENVIRONMENT=Development dotnet msbuild &quot;$(MSBuildProjectFullPath)&quot; /t:GenerateOpenApiDocuments /p:Configuration=$(Configuration) --nologo -v:q" />
-  </Target>
 
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Http" Version="10.2.3" />
@@ -33,9 +30,5 @@
   <ItemGroup>
     <ProjectReference Include="..\Logistics.ServiceDefaults\Logistics.ServiceDefaults.csproj" />
   </ItemGroup>
-
-  <Target Name="ConvertOpenApiJsonToYaml" AfterTargets="GenerateOpenApiDocuments" Condition="Exists('$(OpenApiDocumentsDirectory)/openapi.json')">
-    <Exec Command="yq -Poy &quot;$(OpenApiDocumentsDirectory)/openapi.json&quot; &gt; &quot;$(OpenApiDocumentsDirectory)/openapi.yaml&quot;" />
-  </Target>
 
 </Project>

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Asp.Versioning.Builder;
 using Logistics.Backend.Extensions;
 using Logistics.Backend.Infrastructure;
@@ -11,6 +12,9 @@ using RouteEntity = Logistics.Backend.Model.Routes.Route;
 
 namespace Logistics.Backend.Apis;
 
+/// <summary>
+/// Operations for defining and managing transit/delivery routes and their ordered waypoints.
+/// </summary>
 public static class RouteApi
 {
     public static void MapRouteApi(this IEndpointRouteBuilder app)
@@ -94,6 +98,9 @@ public static class RouteApi
             .ProducesProblem(StatusCodes.Status500InternalServerError);
     }
 
+    /// <response code="200">Paginated list of routes.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<RouteListResponse>, ProblemHttpResult>> ListRoutes(
         [AsParameters] QueryRouteRequest request,
         LogisticsContext dbContext,
@@ -145,8 +152,11 @@ public static class RouteApi
         return TypedResults.Ok(response);
     }
 
+    /// <response code="200">Route details.</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<RouteEntity>, ProblemHttpResult>> GetRouteById(
-        Guid routeId,
+        [Description("Unique identifier (UUID) of the route.")] Guid routeId,
         LogisticsContext dbContext,
         HttpContext httpContext,
         CancellationToken cancellationToken = default)
@@ -166,12 +176,16 @@ public static class RouteApi
         return TypedResults.Ok(route);
     }
 
+    /// <response code="201">Route successfully registered.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="409">A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Created<RouteEntity>, ProblemHttpResult>> CreateRoute(
         CreateRouteRequest createRoute,
         LogisticsContext dbContext,
         IMemoryCache memoryCache,
         HttpContext httpContext,
-        [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey = null,
+        [FromHeader(Name = "Idempotency-Key"), Description("Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.")] Guid? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
         string? cacheKey = idempotencyKey.HasValue
@@ -222,12 +236,18 @@ public static class RouteApi
         return TypedResults.Created($"/v1/routes/{route.Id}", route);
     }
 
+    /// <response code="200">Route successfully replaced.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="409">A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<RouteEntity>, ProblemHttpResult>> ReplaceRoute(
-        Guid routeId,
+        [Description("Unique identifier (UUID) of the route.")] Guid routeId,
         UpdateRouteRequest updateRoute,
         LogisticsContext dbContext,
         HttpContext httpContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         RouteEntity? route = await dbContext.Routes.FindAsync([routeId], cancellationToken);
@@ -293,12 +313,18 @@ public static class RouteApi
         return TypedResults.Ok(route);
     }
 
+    /// <response code="200">Route successfully updated.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="409">A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<RouteEntity>, ProblemHttpResult>> PatchRoute(
-        Guid routeId,
+        [Description("Unique identifier (UUID) of the route.")] Guid routeId,
         PatchRouteRequest patchRoute,
         LogisticsContext dbContext,
         HttpContext httpContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         RouteEntity? route = await dbContext.Routes.FindAsync([routeId], cancellationToken);
@@ -365,10 +391,14 @@ public static class RouteApi
         return TypedResults.Ok(route);
     }
 
+    /// <response code="204">Route successfully deleted.</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteRoute(
-        Guid routeId,
+        [Description("Unique identifier (UUID) of the route.")] Guid routeId,
         LogisticsContext dbContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*")
@@ -417,8 +447,11 @@ public static class RouteApi
         return TypedResults.NoContent();
     }
 
+    /// <response code="200">Ordered sequence of waypoints for the route.</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<RouteWaypointsResponse>, ProblemHttpResult>> GetRouteWaypoints(
-        Guid routeId,
+        [Description("Unique identifier (UUID) of the route.")] Guid routeId,
         LogisticsContext dbContext,
         HttpContext httpContext,
         CancellationToken cancellationToken = default)
@@ -444,12 +477,17 @@ public static class RouteApi
         return TypedResults.Ok(response);
     }
 
+    /// <response code="200">Ordered waypoints successfully replaced.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<RouteWaypointsResponse>, ProblemHttpResult>> ReplaceRouteWaypoints(
-        Guid routeId,
+        [Description("Unique identifier (UUID) of the route.")] Guid routeId,
         ReplaceWaypointsRequest replaceWaypoints,
         LogisticsContext dbContext,
         HttpContext httpContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         RouteEntity? route = await dbContext.Routes.FindAsync([routeId], cancellationToken);
