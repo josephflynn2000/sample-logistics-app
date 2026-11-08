@@ -45,7 +45,7 @@ extensions:
     presets:
       defaultEnvironment: local
     openapi:
-      - sourceUrl: ../../../docs/openapi/openapi.yaml
+      - sourceUrl: ../../../docs/openapi/openapi.json
         groupBy: tags
         lastSyncDate: 2026-10-28T16:23:28.253Z
         specHash: 305baf6111691e40489a77db8bd6dfaf

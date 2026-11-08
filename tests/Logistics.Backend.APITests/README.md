@@ -1,6 +1,6 @@
 # Logistics API Conformance Tests (Bruno v4)
 
-This directory contains the automated API conformance test suite for the Logistics Management REST API (`v1`), built for **Bruno v4** using the OpenCollection (`opencollection: 1.0.0`) YAML format and synchronized with [`docs/openapi/openapi.yaml`](../../docs/openapi/openapi.yaml).
+This directory contains the automated API conformance test suite for the Logistics Management REST API (`v1`), built for **Bruno v4** using the OpenCollection (`opencollection: 1.0.0`) YAML format and synchronized with [`docs/openapi/openapi.json`](../../docs/openapi/openapi.json).
 
 ## Prerequisites
 

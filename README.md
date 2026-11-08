@@ -133,7 +133,7 @@ aspire dashboard run
 
 ## API Specification & Testing
 
-- **OpenAPI Specification**: [`docs/openapi/openapi.yaml`](docs/openapi/openapi.yaml) defines the v1 REST API contract for `/v1/vehicles`, `/v1/drivers`, and `/v1/routes` (including `/v1/routes/{routeId}/waypoints`), designed for Swagger tooling and DocFX documentation generation.
+- **OpenAPI Specification**: [`docs/openapi/openapi.json`](docs/openapi/openapi.json) defines the v1 REST API contract for `/v1/vehicles`, `/v1/drivers`, and `/v1/routes` (including `/v1/routes/{routeId}/waypoints`), designed for Swagger tooling and DocFX documentation generation.
 - **Bruno v4 API Conformance Suite**: [`tests/Logistics.Backend.APITests/`](tests/Logistics.Backend.APITests/README.md) contains 32 OpenCollection (`1.0.0`) YAML requests covering full CRUD lifecycles, optimistic concurrency (`ETag` / `If-Match`), and RFC 9457 Problem Details error contracts (`400`, `404`, `409`, `412`). Run via CLI:
   ```bash
   ./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5000/v1 --reports

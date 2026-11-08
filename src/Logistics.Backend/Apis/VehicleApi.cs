@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Asp.Versioning.Builder;
 using Logistics.Backend.Extensions;
 using Logistics.Backend.Infrastructure;
@@ -9,6 +10,9 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Logistics.Backend.Apis;
 
+/// <summary>
+/// Operations for registering and managing fleet vehicles.
+/// </summary>
 public static class VehicleApi
 {
     public static void MapVehicleApi(this IEndpointRouteBuilder app)
@@ -74,6 +78,9 @@ public static class VehicleApi
             .ProducesProblem(StatusCodes.Status500InternalServerError);
     }
 
+    /// <response code="200">Paginated list of vehicles.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<VehicleListResponse>, ProblemHttpResult>> ListVehicles(
         LogisticsContext dbContext,
         [AsParameters] QueryVehicleRequest request,
@@ -124,8 +131,11 @@ public static class VehicleApi
         return TypedResults.Ok(response);
     }
 
+    /// <response code="200">Vehicle details.</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<Vehicle>, ProblemHttpResult>> GetVehicleById(
-        Guid vehicleId,
+        [Description("Unique identifier (UUID) of the vehicle.")] Guid vehicleId,
         LogisticsContext dbContext,
         HttpContext httpContext,
         CancellationToken cancellationToken = default)
@@ -145,12 +155,16 @@ public static class VehicleApi
         return TypedResults.Ok(vehicle);
     }
 
+    /// <response code="201">Vehicle successfully registered.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="409">A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Created<Vehicle>, ProblemHttpResult>> CreateVehicle(
         CreateVehicleRequest createVehicle,
         LogisticsContext dbContext,
         IMemoryCache memoryCache,
         HttpContext httpContext,
-        [FromHeader(Name = "Idempotency-Key")] Guid? idempotencyKey = null,
+        [FromHeader(Name = "Idempotency-Key"), Description("Optional client-generated unique key (e.g., UUID) to guarantee idempotent resource creation across network retries.")] Guid? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
         string? cacheKey = idempotencyKey.HasValue
@@ -203,12 +217,18 @@ public static class VehicleApi
         return TypedResults.Created($"/v1/vehicles/{vehicle.Id}", vehicle);
     }
 
+    /// <response code="200">Vehicle successfully replaced.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="409">A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<Vehicle>, ProblemHttpResult>> ReplaceVehicle(
-        Guid vehicleId,
+        [Description("Unique identifier (UUID) of the vehicle.")] Guid vehicleId,
         UpdateVehicleRequest updateVehicle,
         LogisticsContext dbContext,
         HttpContext httpContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         Vehicle? vehicle = await dbContext.Vehicles.FindAsync([vehicleId], cancellationToken);
@@ -266,12 +286,18 @@ public static class VehicleApi
         return TypedResults.Ok(vehicle);
     }
 
+    /// <response code="200">Vehicle successfully updated.</response>
+    /// <response code="400">Request validation failed (`400 Bad Request`).</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="409">A conflict occurred with the current state of the target resource (`409 Conflict`), such as a duplicate unique identifier (VIN, license plate, employee number, or route code).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<Ok<Vehicle>, ProblemHttpResult>> PatchVehicle(
-        Guid vehicleId,
+        [Description("Unique identifier (UUID) of the vehicle.")] Guid vehicleId,
         PatchVehicleRequest patchVehicle,
         LogisticsContext dbContext,
         HttpContext httpContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         Vehicle? vehicle = await dbContext.Vehicles.FindAsync([vehicleId], cancellationToken);
@@ -337,10 +363,14 @@ public static class VehicleApi
         return TypedResults.Ok(vehicle);
     }
 
+    /// <response code="204">Vehicle successfully deleted.</response>
+    /// <response code="404">The requested resource was not found (`404 Not Found`).</response>
+    /// <response code="412">The `If-Match` precondition failed (`412 Precondition Failed`) because the resource was modified by another request.</response>
+    /// <response code="500">An unexpected server error occurred (`500 Internal Server Error`).</response>
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteVehicle(
-        Guid vehicleId,
+        [Description("Unique identifier (UUID) of the vehicle.")] Guid vehicleId,
         LogisticsContext dbContext,
-        [FromHeader(Name = "If-Match")] string? ifMatch = null,
+        [FromHeader(Name = "If-Match"), Description("Optional entity tag (`ETag`) value for optimistic concurrency control. If the resource has been modified since this `ETag` was issued, the server returns `412 Precondition Failed`.")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(ifMatch) || ifMatch.Trim() == "*")
