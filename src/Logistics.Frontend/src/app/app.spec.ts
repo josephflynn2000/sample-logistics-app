@@ -38,9 +38,7 @@ describe('Logistics Frontend Application', () => {
     expect(service.isPreconditionFailed({ responseStatusCode: 412 })).toBe(true);
     expect(service.isConflictError({ responseStatusCode: 409 })).toBe(true);
     expect(service.isValidationError({ responseStatusCode: 400 })).toBe(true);
-    expect(service.getProblemDetail({ detail: 'Duplicate VIN' }, 'Fallback')).toBe(
-      'Duplicate VIN',
-    );
+    expect(service.getProblemDetail({ detail: 'Duplicate VIN' }, 'Fallback')).toBe('Duplicate VIN');
   });
 
   it('should serialize PATCH requests with application/merge-patch+json without throwing', () => {

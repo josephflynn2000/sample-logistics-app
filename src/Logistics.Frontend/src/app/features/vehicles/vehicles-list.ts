@@ -84,8 +84,7 @@ export class VehiclesList {
 
   protected readonly fleetStats = computed(() => {
     const all = this.vehicles();
-    const totalPayloadTons =
-      all.reduce((acc, v) => acc + (v.capacityKg ?? 0), 0) / 1000;
+    const totalPayloadTons = all.reduce((acc, v) => acc + (v.capacityKg ?? 0), 0) / 1000;
     return {
       total: all.length,
       available: all.filter((v) => v.status === 'Available').length,
@@ -239,11 +238,9 @@ export class VehiclesList {
         list.map((v) => (v.id === vehicle.id ? { ...v, status: nextStatus } : v)),
       );
     }
-    this.snackBar.open(
-      `${vehicle.make} ${vehicle.model} marked as ${nextStatus}`,
-      'Dismiss',
-      { duration: 3000 },
-    );
+    this.snackBar.open(`${vehicle.make} ${vehicle.model} marked as ${nextStatus}`, 'Dismiss', {
+      duration: 3000,
+    });
   }
 
   protected async deleteVehicle(vehicle: Vehicle): Promise<void> {
@@ -266,11 +263,9 @@ export class VehiclesList {
       }
     }
     this.vehicles.update((list) => list.filter((v) => v.id !== vehicle.id));
-    this.snackBar.open(
-      `Removed ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
-      'Dismiss',
-      { duration: 3500 },
-    );
+    this.snackBar.open(`Removed ${vehicle.year} ${vehicle.make} ${vehicle.model}`, 'Dismiss', {
+      duration: 3500,
+    });
   }
 
   private async createVehicle(payload: VehicleDialogResult): Promise<void> {
@@ -278,11 +273,9 @@ export class VehiclesList {
       const created = await this.apiService.client.v1.vehicles.post(payload);
       if (created) {
         this.vehicles.update((list) => [created, ...list]);
-        this.snackBar.open(
-          `Added ${created.year} ${created.make} ${created.model}`,
-          'Close',
-          { duration: 3500 },
-        );
+        this.snackBar.open(`Added ${created.year} ${created.make} ${created.model}`, 'Close', {
+          duration: 3500,
+        });
         return;
       }
     } catch (err: unknown) {
@@ -311,9 +304,7 @@ export class VehiclesList {
 
   private async updateVehicle(vehicleId: string, payload: VehicleDialogResult): Promise<void> {
     try {
-      const updated = await this.apiService.client.v1.vehicles
-        .byVehicleId(vehicleId)
-        .put(payload);
+      const updated = await this.apiService.client.v1.vehicles.byVehicleId(vehicleId).put(payload);
       if (updated) {
         this.vehicles.update((list) => list.map((v) => (v.id === vehicleId ? updated : v)));
         this.snackBar.open('Vehicle specifications updated', 'OK', { duration: 3000 });

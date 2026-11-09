@@ -47,37 +47,173 @@ export const SCENARIO = (__ENV.SCENARIO || 'smoke').toLowerCase() as ScenarioNam
 export const TARGET_OPERATION = (__ENV.OPERATION || 'Routes_List') as OperationName;
 export const GENERATE_REPORTS = (__ENV.REPORTS || 'false').toLowerCase() === 'true';
 
-export const DEFAULT_SEED_COUNT = Number(
-  __ENV.SEED_COUNT || (SCENARIO === 'smoke' ? 10 : 100)
-);
+export const DEFAULT_SEED_COUNT = Number(__ENV.SEED_COUNT || (SCENARIO === 'smoke' ? 10 : 100));
 
 export const ALL_OPERATIONS: readonly OperationMetadata[] = [
   // Vehicles
-  { resource: 'vehicles', operation: 'Vehicles_Create', method: 'POST', route: '/v1/vehicles', kind: 'write' },
-  { resource: 'vehicles', operation: 'Vehicles_List', method: 'GET', route: '/v1/vehicles', kind: 'read' },
-  { resource: 'vehicles', operation: 'Vehicles_Search', method: 'GET', route: '/v1/vehicles?search=...', kind: 'read' },
-  { resource: 'vehicles', operation: 'Vehicles_Get', method: 'GET', route: '/v1/vehicles/{vehicleId}', kind: 'read' },
-  { resource: 'vehicles', operation: 'Vehicles_Replace', method: 'PUT', route: '/v1/vehicles/{vehicleId}', kind: 'write' },
-  { resource: 'vehicles', operation: 'Vehicles_Patch', method: 'PATCH', route: '/v1/vehicles/{vehicleId}', kind: 'write' },
-  { resource: 'vehicles', operation: 'Vehicles_Delete', method: 'DELETE', route: '/v1/vehicles/{vehicleId}', kind: 'write' },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_Create',
+    method: 'POST',
+    route: '/v1/vehicles',
+    kind: 'write',
+  },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_List',
+    method: 'GET',
+    route: '/v1/vehicles',
+    kind: 'read',
+  },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_Search',
+    method: 'GET',
+    route: '/v1/vehicles?search=...',
+    kind: 'read',
+  },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_Get',
+    method: 'GET',
+    route: '/v1/vehicles/{vehicleId}',
+    kind: 'read',
+  },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_Replace',
+    method: 'PUT',
+    route: '/v1/vehicles/{vehicleId}',
+    kind: 'write',
+  },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_Patch',
+    method: 'PATCH',
+    route: '/v1/vehicles/{vehicleId}',
+    kind: 'write',
+  },
+  {
+    resource: 'vehicles',
+    operation: 'Vehicles_Delete',
+    method: 'DELETE',
+    route: '/v1/vehicles/{vehicleId}',
+    kind: 'write',
+  },
   // Drivers
-  { resource: 'drivers', operation: 'Drivers_Create', method: 'POST', route: '/v1/drivers', kind: 'write' },
-  { resource: 'drivers', operation: 'Drivers_List', method: 'GET', route: '/v1/drivers', kind: 'read' },
-  { resource: 'drivers', operation: 'Drivers_Search', method: 'GET', route: '/v1/drivers?search=...', kind: 'read' },
-  { resource: 'drivers', operation: 'Drivers_Get', method: 'GET', route: '/v1/drivers/{driverId}', kind: 'read' },
-  { resource: 'drivers', operation: 'Drivers_Replace', method: 'PUT', route: '/v1/drivers/{driverId}', kind: 'write' },
-  { resource: 'drivers', operation: 'Drivers_Patch', method: 'PATCH', route: '/v1/drivers/{driverId}', kind: 'write' },
-  { resource: 'drivers', operation: 'Drivers_Delete', method: 'DELETE', route: '/v1/drivers/{driverId}', kind: 'write' },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_Create',
+    method: 'POST',
+    route: '/v1/drivers',
+    kind: 'write',
+  },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_List',
+    method: 'GET',
+    route: '/v1/drivers',
+    kind: 'read',
+  },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_Search',
+    method: 'GET',
+    route: '/v1/drivers?search=...',
+    kind: 'read',
+  },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_Get',
+    method: 'GET',
+    route: '/v1/drivers/{driverId}',
+    kind: 'read',
+  },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_Replace',
+    method: 'PUT',
+    route: '/v1/drivers/{driverId}',
+    kind: 'write',
+  },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_Patch',
+    method: 'PATCH',
+    route: '/v1/drivers/{driverId}',
+    kind: 'write',
+  },
+  {
+    resource: 'drivers',
+    operation: 'Drivers_Delete',
+    method: 'DELETE',
+    route: '/v1/drivers/{driverId}',
+    kind: 'write',
+  },
   // Routes & Waypoints
-  { resource: 'routes', operation: 'Routes_Create', method: 'POST', route: '/v1/routes', kind: 'write' },
-  { resource: 'routes', operation: 'Routes_List', method: 'GET', route: '/v1/routes', kind: 'read' },
-  { resource: 'routes', operation: 'Routes_Search', method: 'GET', route: '/v1/routes?search=...', kind: 'read' },
-  { resource: 'routes', operation: 'Routes_Get', method: 'GET', route: '/v1/routes/{routeId}', kind: 'read' },
-  { resource: 'routes', operation: 'Routes_Replace', method: 'PUT', route: '/v1/routes/{routeId}', kind: 'write' },
-  { resource: 'routes', operation: 'Routes_Patch', method: 'PATCH', route: '/v1/routes/{routeId}', kind: 'write' },
-  { resource: 'routes', operation: 'Routes_GetWaypoints', method: 'GET', route: '/v1/routes/{routeId}/waypoints', kind: 'read' },
-  { resource: 'routes', operation: 'Routes_ReplaceWaypoints', method: 'PUT', route: '/v1/routes/{routeId}/waypoints', kind: 'write' },
-  { resource: 'routes', operation: 'Routes_Delete', method: 'DELETE', route: '/v1/routes/{routeId}', kind: 'write' },
+  {
+    resource: 'routes',
+    operation: 'Routes_Create',
+    method: 'POST',
+    route: '/v1/routes',
+    kind: 'write',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_List',
+    method: 'GET',
+    route: '/v1/routes',
+    kind: 'read',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_Search',
+    method: 'GET',
+    route: '/v1/routes?search=...',
+    kind: 'read',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_Get',
+    method: 'GET',
+    route: '/v1/routes/{routeId}',
+    kind: 'read',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_Replace',
+    method: 'PUT',
+    route: '/v1/routes/{routeId}',
+    kind: 'write',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_Patch',
+    method: 'PATCH',
+    route: '/v1/routes/{routeId}',
+    kind: 'write',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_GetWaypoints',
+    method: 'GET',
+    route: '/v1/routes/{routeId}/waypoints',
+    kind: 'read',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_ReplaceWaypoints',
+    method: 'PUT',
+    route: '/v1/routes/{routeId}/waypoints',
+    kind: 'write',
+  },
+  {
+    resource: 'routes',
+    operation: 'Routes_Delete',
+    method: 'DELETE',
+    route: '/v1/routes/{routeId}',
+    kind: 'write',
+  },
 ];
 
 export function buildScenarioConfig(): Record<string, Record<string, unknown>> {
@@ -172,7 +308,9 @@ export function buildScenarioConfig(): Record<string, Record<string, unknown>> {
       };
 
     default:
-      throw new Error(`Unknown SCENARIO '${SCENARIO}'. Expected smoke, mixed, stress, spike, or endpoint.`);
+      throw new Error(
+        `Unknown SCENARIO '${SCENARIO}'. Expected smoke, mixed, stress, spike, or endpoint.`,
+      );
   }
 }
 

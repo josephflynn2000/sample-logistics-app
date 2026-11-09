@@ -1,0 +1,76 @@
+name: Merge Request CI
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  frontend-build-and-test:
+    name: Frontend Build & Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Check formatting (Prettier) & k6 types
+        run: |
+          npm run format:check
+          npm run typecheck:perf
+
+      - name: Build Angular frontend (Production)
+        run: npm run build
+
+      - name: Run Frontend unit tests (Vitest)
+        run: npm run test:ci
+
+  backend-build-and-test:
+    name: Backend Build, Contract & Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore .NET dependencies
+        run: dotnet restore main.slnx
+
+      - name: Build Backend, enforce code style & generate OpenAPI specification
+        run: dotnet build main.slnx --configuration Release --no-restore -p:EnforceCodeStyleInBuild=true
+
+      - name: Verify OpenAPI specification has no uncommitted drift
+        run: |
+          if ! git diff --exit-code docs/openapi/openapi.json; then
+            echo "::error file=docs/openapi/openapi.json::docs/openapi/openapi.json is out of sync with Logistics.Backend. Run 'dotnet build' and commit the updated spec."
+            exit 1
+          fi
+
+      - name: Run Backend integration tests (MSTest)
+        run: dotnet test --solution main.slnx --configuration Release --no-build
