@@ -7,6 +7,10 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:ci": "ng test --watch=false",
+    "format": "prettier --write \"src/Logistics.Frontend/**/*.{ts,html,css}\" \"tests/Logistics.Backend.PerfTests/**/*.ts\"",
+    "format:check": "prettier --check \"src/Logistics.Frontend/**/*.{ts,html,css}\" \"tests/Logistics.Backend.PerfTests/**/*.ts\"",
+    "typecheck:perf": "tsc --noEmit -p tests/Logistics.Backend.PerfTests/tsconfig.json",
     "serve:ssr:Logistics.Frontend": "node dist/Logistics.Frontend/server/server.mjs"
   },
   "private": true,

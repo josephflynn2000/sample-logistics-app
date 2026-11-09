@@ -136,6 +136,43 @@ aspire dashboard run
 - **OpenAPI Specification**: [`docs/openapi/openapi.json`](docs/openapi/openapi.json) defines the v1 REST API contract for `/v1/vehicles`, `/v1/drivers`, and `/v1/routes` (including `/v1/routes/{routeId}/waypoints`), designed for Swagger tooling and DocFX documentation generation.
 - **Bruno v4 API Conformance Suite**: [`tests/Logistics.Backend.APITests/`](tests/Logistics.Backend.APITests/README.md) contains 32 OpenCollection (`1.0.0`) YAML requests covering full CRUD lifecycles, optimistic concurrency (`ETag` / `If-Match`), and RFC 9457 Problem Details error contracts (`400`, `404`, `409`, `412`). Run via CLI:
   ```bash
-  ./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5000/v1 --reports
+  ./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5045/v1 --reports
   ```
+
+## CI/CD — Merge Request Workflow
+
+Every Pull/Merge Request targeting `main` automatically runs [`.github/workflows/ci-mr.yml`](.github/workflows/ci-mr.yml) (`pull_request` and `merge_group` triggers), which aggregates two fast parallel jobs behind the single **`MR Gate` (`mr-gate`)** status check:
+
+1. **Frontend Build & Unit Tests (`frontend-build-and-test`)**:
+   - Checks code formatting with Prettier (`npm run format:check`).
+   - Typechecks the k6 performance test suite against the Kiota-generated client models (`npm run typecheck:perf`).
+   - Builds the Angular application in `production` configuration (`npm run build`), verifying bundle budgets.
+   - Runs headless Vitest unit tests (`npm run test:ci`).
+2. **Backend Build, Contract & Integration Tests (`backend-build-and-test`)**:
+   - Verifies C# code style against `.editorconfig` (`dotnet format main.slnx --verify-no-changes`).
+   - Compiles `main.slnx` in `Release` configuration (`dotnet build main.slnx --configuration Release`).
+   - Verifies that [`docs/openapi/openapi.json`](docs/openapi/openapi.json) has no uncommitted drift after build.
+   - Runs the MSTest backend integration test suite (`dotnet test --solution main.slnx --configuration Release --no-build`).
+
+### Running Merge Request Checks Locally
+
+Before opening or updating a Merge Request, run the same checks locally:
+
+```bash
+# Auto-format Frontend (Prettier) and Backend (.editorconfig)
+npm run format
+dotnet format main.slnx
+
+# Run Frontend checks & unit tests
+npm run format:check
+npm run typecheck:perf
+npm run build
+npm run test:ci
+
+# Run Backend build, OpenAPI drift check & MSTest integration tests
+dotnet build main.slnx --configuration Release
+git diff --exit-code docs/openapi/openapi.json
+dotnet test --solution main.slnx --configuration Release --no-build
+```
+
 

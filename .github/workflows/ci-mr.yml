@@ -1,0 +1,87 @@
+name: Merge Request CI
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  frontend-build-and-test:
+    name: Frontend Build & Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting (Prettier)
+        run: npm run format:check
+
+      - name: Typecheck k6 performance tests against Kiota client models
+        run: npm run typecheck:perf
+
+      - name: Build Angular frontend (Production)
+        run: npm run build
+
+      - name: Run Frontend unit tests (Vitest)
+        run: npm run test:ci
+
+  backend-build-and-test:
+    name: Backend Build, Contract & Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore .NET dependencies
+        run: dotnet restore main.slnx
+
+      - name: Verify C# code formatting (.editorconfig)
+        run: dotnet format main.slnx --verify-no-changes --no-restore --verbosity quiet
+
+      - name: Build Backend & generate OpenAPI specification
+        run: dotnet build main.slnx --configuration Release --no-restore
+
+      - name: Run Backend integration tests (MSTest)
+        run: dotnet test --solution main.slnx --configuration Release --no-build
+
+  mr-gate:
+    name: MR Gate
+    if: always()
+    needs: [frontend-build-and-test, backend-build-and-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check MR validation status
+        run: |
+          if [[ "${{ needs.frontend-build-and-test.result }}" != "success" || "${{ needs.backend-build-and-test.result }}" != "success" ]]; then
+            echo "::error::One or more required Merge Request checks failed."
+            exit 1
+          fi
+          echo "All Merge Request checks passed."
