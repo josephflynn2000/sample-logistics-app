@@ -45,7 +45,7 @@ function params(
   resource: ResourceKind,
   operation: OperationName,
   kind: OperationKind,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
 ): Params {
   return {
     headers: extraHeaders ? Object.assign({}, JSON_HEADERS, extraHeaders) : JSON_HEADERS,
@@ -70,7 +70,7 @@ export function createVehicle(payload: CreateVehicleRequest): EntityResult<Vehic
   const res = http.post(
     `${API_BASE_URL}/vehicles`,
     JSON.stringify(payload),
-    params('vehicles', 'Vehicles_Create', 'write')
+    params('vehicles', 'Vehicles_Create', 'write'),
   );
   check(res, {
     'Vehicles_Create is 201': (r) => r.status === 201,
@@ -85,7 +85,7 @@ export function createVehicle(payload: CreateVehicleRequest): EntityResult<Vehic
 export function listVehicles(
   pageSize = 25,
   pageToken: string | null = null,
-  orderBy = 'createdAt desc'
+  orderBy = 'createdAt desc',
 ): EntityResult<VehicleListResponse> {
   let url = `${API_BASE_URL}/vehicles?pageSize=${pageSize}&orderBy=${encodeURIComponent(orderBy)}`;
   if (pageToken) {
@@ -104,7 +104,7 @@ export function listVehicles(
 
 export function searchVehicles(
   searchTerm: string,
-  status: VehicleStatus | null = null
+  status: VehicleStatus | null = null,
 ): EntityResult<VehicleListResponse> {
   let url = `${API_BASE_URL}/vehicles?pageSize=25&search=${encodeURIComponent(searchTerm)}`;
   if (status) {
@@ -124,7 +124,7 @@ export function searchVehicles(
 export function getVehicle(vehicleId: string): EntityResult<Vehicle> {
   const res = http.get(
     `${API_BASE_URL}/vehicles/${vehicleId}`,
-    params('vehicles', 'Vehicles_Get', 'read')
+    params('vehicles', 'Vehicles_Get', 'read'),
   );
   check(res, {
     'Vehicles_Get is 200': (r) => r.status === 200,
@@ -139,12 +139,12 @@ export function getVehicle(vehicleId: string): EntityResult<Vehicle> {
 export function replaceVehicle(
   vehicleId: string,
   payload: UpdateVehicleRequest,
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<Vehicle> {
   const res = http.put(
     `${API_BASE_URL}/vehicles/${vehicleId}`,
     JSON.stringify(payload),
-    params('vehicles', 'Vehicles_Replace', 'write', { 'If-Match': ifMatch })
+    params('vehicles', 'Vehicles_Replace', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Vehicles_Replace is 200': (r) => r.status === 200,
@@ -159,7 +159,7 @@ export function replaceVehicle(
 export function patchVehicle(
   vehicleId: string,
   patchPayload: PatchVehicleRequest,
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<Vehicle> {
   const res = http.patch(
     `${API_BASE_URL}/vehicles/${vehicleId}`,
@@ -167,7 +167,7 @@ export function patchVehicle(
     params('vehicles', 'Vehicles_Patch', 'write', {
       'Content-Type': 'application/merge-patch+json',
       'If-Match': ifMatch,
-    })
+    }),
   );
   check(res, {
     'Vehicles_Patch is 200': (r) => r.status === 200,
@@ -183,7 +183,7 @@ export function deleteVehicle(vehicleId: string, ifMatch = '*'): Response {
   const res = http.del(
     `${API_BASE_URL}/vehicles/${vehicleId}`,
     null,
-    params('vehicles', 'Vehicles_Delete', 'write', { 'If-Match': ifMatch })
+    params('vehicles', 'Vehicles_Delete', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Vehicles_Delete is 204': (r) => r.status === 204,
@@ -199,7 +199,7 @@ export function createDriver(payload: CreateDriverRequest): EntityResult<Driver>
   const res = http.post(
     `${API_BASE_URL}/drivers`,
     JSON.stringify(payload),
-    params('drivers', 'Drivers_Create', 'write')
+    params('drivers', 'Drivers_Create', 'write'),
   );
   check(res, {
     'Drivers_Create is 201': (r) => r.status === 201,
@@ -214,7 +214,7 @@ export function createDriver(payload: CreateDriverRequest): EntityResult<Driver>
 export function listDrivers(
   pageSize = 25,
   pageToken: string | null = null,
-  orderBy = 'createdAt desc'
+  orderBy = 'createdAt desc',
 ): EntityResult<DriverListResponse> {
   let url = `${API_BASE_URL}/drivers?pageSize=${pageSize}&orderBy=${encodeURIComponent(orderBy)}`;
   if (pageToken) {
@@ -233,7 +233,7 @@ export function listDrivers(
 
 export function searchDrivers(
   searchTerm: string,
-  status: DriverStatus | null = null
+  status: DriverStatus | null = null,
 ): EntityResult<DriverListResponse> {
   let url = `${API_BASE_URL}/drivers?pageSize=25&search=${encodeURIComponent(searchTerm)}`;
   if (status) {
@@ -253,7 +253,7 @@ export function searchDrivers(
 export function getDriver(driverId: string): EntityResult<Driver> {
   const res = http.get(
     `${API_BASE_URL}/drivers/${driverId}`,
-    params('drivers', 'Drivers_Get', 'read')
+    params('drivers', 'Drivers_Get', 'read'),
   );
   check(res, {
     'Drivers_Get is 200': (r) => r.status === 200,
@@ -268,12 +268,12 @@ export function getDriver(driverId: string): EntityResult<Driver> {
 export function replaceDriver(
   driverId: string,
   payload: UpdateDriverRequest,
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<Driver> {
   const res = http.put(
     `${API_BASE_URL}/drivers/${driverId}`,
     JSON.stringify(payload),
-    params('drivers', 'Drivers_Replace', 'write', { 'If-Match': ifMatch })
+    params('drivers', 'Drivers_Replace', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Drivers_Replace is 200': (r) => r.status === 200,
@@ -288,7 +288,7 @@ export function replaceDriver(
 export function patchDriver(
   driverId: string,
   patchPayload: PatchDriverRequest,
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<Driver> {
   const res = http.patch(
     `${API_BASE_URL}/drivers/${driverId}`,
@@ -296,7 +296,7 @@ export function patchDriver(
     params('drivers', 'Drivers_Patch', 'write', {
       'Content-Type': 'application/merge-patch+json',
       'If-Match': ifMatch,
-    })
+    }),
   );
   check(res, {
     'Drivers_Patch is 200': (r) => r.status === 200,
@@ -312,7 +312,7 @@ export function deleteDriver(driverId: string, ifMatch = '*'): Response {
   const res = http.del(
     `${API_BASE_URL}/drivers/${driverId}`,
     null,
-    params('drivers', 'Drivers_Delete', 'write', { 'If-Match': ifMatch })
+    params('drivers', 'Drivers_Delete', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Drivers_Delete is 204': (r) => r.status === 204,
@@ -328,7 +328,7 @@ export function createRoute(payload: CreateRouteRequest): EntityResult<Route> {
   const res = http.post(
     `${API_BASE_URL}/routes`,
     JSON.stringify(payload),
-    params('routes', 'Routes_Create', 'write')
+    params('routes', 'Routes_Create', 'write'),
   );
   check(res, {
     'Routes_Create is 201': (r) => r.status === 201,
@@ -343,7 +343,7 @@ export function createRoute(payload: CreateRouteRequest): EntityResult<Route> {
 export function listRoutes(
   pageSize = 25,
   pageToken: string | null = null,
-  orderBy = 'createdAt desc'
+  orderBy = 'createdAt desc',
 ): EntityResult<RouteListResponse> {
   let url = `${API_BASE_URL}/routes?pageSize=${pageSize}&orderBy=${encodeURIComponent(orderBy)}`;
   if (pageToken) {
@@ -362,7 +362,7 @@ export function listRoutes(
 
 export function searchRoutes(
   searchTerm: string,
-  status: RouteStatus | null = null
+  status: RouteStatus | null = null,
 ): EntityResult<RouteListResponse> {
   let url = `${API_BASE_URL}/routes?pageSize=25&search=${encodeURIComponent(searchTerm)}`;
   if (status) {
@@ -380,10 +380,7 @@ export function searchRoutes(
 }
 
 export function getRoute(routeId: string): EntityResult<Route> {
-  const res = http.get(
-    `${API_BASE_URL}/routes/${routeId}`,
-    params('routes', 'Routes_Get', 'read')
-  );
+  const res = http.get(`${API_BASE_URL}/routes/${routeId}`, params('routes', 'Routes_Get', 'read'));
   check(res, {
     'Routes_Get is 200': (r) => r.status === 200,
   });
@@ -397,12 +394,12 @@ export function getRoute(routeId: string): EntityResult<Route> {
 export function replaceRoute(
   routeId: string,
   payload: UpdateRouteRequest,
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<Route> {
   const res = http.put(
     `${API_BASE_URL}/routes/${routeId}`,
     JSON.stringify(payload),
-    params('routes', 'Routes_Replace', 'write', { 'If-Match': ifMatch })
+    params('routes', 'Routes_Replace', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Routes_Replace is 200': (r) => r.status === 200,
@@ -417,7 +414,7 @@ export function replaceRoute(
 export function patchRoute(
   routeId: string,
   patchPayload: PatchRouteRequest,
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<Route> {
   const res = http.patch(
     `${API_BASE_URL}/routes/${routeId}`,
@@ -425,7 +422,7 @@ export function patchRoute(
     params('routes', 'Routes_Patch', 'write', {
       'Content-Type': 'application/merge-patch+json',
       'If-Match': ifMatch,
-    })
+    }),
   );
   check(res, {
     'Routes_Patch is 200': (r) => r.status === 200,
@@ -440,7 +437,7 @@ export function patchRoute(
 export function getRouteWaypoints(routeId: string): EntityResult<RouteWaypointsResponse> {
   const res = http.get(
     `${API_BASE_URL}/routes/${routeId}/waypoints`,
-    params('routes', 'Routes_GetWaypoints', 'read')
+    params('routes', 'Routes_GetWaypoints', 'read'),
   );
   check(res, {
     'Routes_GetWaypoints is 200': (r) => r.status === 200,
@@ -455,13 +452,13 @@ export function getRouteWaypoints(routeId: string): EntityResult<RouteWaypointsR
 export function replaceRouteWaypoints(
   routeId: string,
   waypoints: RouteWaypoint[],
-  ifMatch = '*'
+  ifMatch = '*',
 ): EntityResult<RouteWaypointsResponse> {
   const body: ReplaceWaypointsRequest = { waypoints };
   const res = http.put(
     `${API_BASE_URL}/routes/${routeId}/waypoints`,
     JSON.stringify(body),
-    params('routes', 'Routes_ReplaceWaypoints', 'write', { 'If-Match': ifMatch })
+    params('routes', 'Routes_ReplaceWaypoints', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Routes_ReplaceWaypoints is 200': (r) => r.status === 200,
@@ -477,7 +474,7 @@ export function deleteRoute(routeId: string, ifMatch = '*'): Response {
   const res = http.del(
     `${API_BASE_URL}/routes/${routeId}`,
     null,
-    params('routes', 'Routes_Delete', 'write', { 'If-Match': ifMatch })
+    params('routes', 'Routes_Delete', 'write', { 'If-Match': ifMatch }),
   );
   check(res, {
     'Routes_Delete is 204': (r) => r.status === 204,

@@ -6,15 +6,8 @@ import {
   type SerializationWriterFactoryRegistry,
 } from '@microsoft/kiota-abstractions';
 import { JsonSerializationWriterFactory } from '@microsoft/kiota-serialization-json';
-import {
-  createApiClient,
-  type ApiClient,
-} from '../../../../../Logistics.ClientLibrary/apiClient';
-import type {
-  Driver,
-  Vehicle,
-  Route,
-} from '../../../../../Logistics.ClientLibrary/models/index';
+import { createApiClient, type ApiClient } from '../../../../../Logistics.ClientLibrary/apiClient';
+import type { Driver, Vehicle, Route } from '../../../../../Logistics.ClientLibrary/models/index';
 
 @Injectable({ providedIn: 'root' })
 export class ApiClientService {
@@ -35,10 +28,7 @@ export class ApiClientService {
       // Automatically attach If-Match ETag header on PUT / PATCH / DELETE requests
       const method = (requestInit.method ?? 'GET').toUpperCase();
       const requestResourceId = this.extractResourceId(url);
-      if (
-        (method === 'PUT' || method === 'PATCH' || method === 'DELETE') &&
-        requestResourceId
-      ) {
+      if ((method === 'PUT' || method === 'PATCH' || method === 'DELETE') && requestResourceId) {
         const cachedEtag = this.etagCache.get(requestResourceId);
         if (cachedEtag && !headers.has('If-Match')) {
           headers.set('If-Match', cachedEtag);
@@ -51,11 +41,9 @@ export class ApiClientService {
 
       // Capture ETag header from response or Location header (for 201 Created)
       const etag = response.headers.get('ETag') ?? response.headers.get('etag');
-      const locationHeader =
-        response.headers.get('Location') ?? response.headers.get('location');
+      const locationHeader = response.headers.get('Location') ?? response.headers.get('location');
       const resolvedId =
-        requestResourceId ??
-        (locationHeader ? this.extractResourceId(locationHeader) : null);
+        requestResourceId ?? (locationHeader ? this.extractResourceId(locationHeader) : null);
 
       if (etag && resolvedId) {
         this.etagCache.set(resolvedId, etag);
@@ -284,7 +272,8 @@ export class ApiClientService {
         id: 'c1000000-0000-4000-a000-000000000001',
         code: 'RT-CHI-MSP-01',
         name: 'Chicago Depot to Minneapolis Hub',
-        description: 'Primary I-90 / I-94 northern freight corridor with regional cross-dock stops.',
+        description:
+          'Primary I-90 / I-94 northern freight corridor with regional cross-dock stops.',
         status: 'Active',
         estimatedDistanceKm: 660.0,
         estimatedDurationMinutes: 465,

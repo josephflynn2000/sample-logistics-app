@@ -8,20 +8,17 @@ export const routes: Routes = [
   },
   {
     path: 'drivers',
-    loadComponent: () =>
-      import('./features/drivers/drivers-list').then((m) => m.DriversList),
+    loadComponent: () => import('./features/drivers/drivers-list').then((m) => m.DriversList),
     title: 'Drivers Directory • Logistics',
   },
   {
     path: 'vehicles',
-    loadComponent: () =>
-      import('./features/vehicles/vehicles-list').then((m) => m.VehiclesList),
+    loadComponent: () => import('./features/vehicles/vehicles-list').then((m) => m.VehiclesList),
     title: 'Vehicles Fleet • Logistics',
   },
   {
     path: 'routes',
-    loadComponent: () =>
-      import('./features/routes/routes-list').then((m) => m.RoutesList),
+    loadComponent: () => import('./features/routes/routes-list').then((m) => m.RoutesList),
     title: 'Routes & Dispatch • Logistics',
   },
   {

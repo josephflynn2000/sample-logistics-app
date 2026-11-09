@@ -295,9 +295,7 @@ export class RoutesList {
       }
 
       this.apiService.backendConnected.set(false);
-      this.routes.update((list) =>
-        list.map((r) => (r.id === routeId ? { ...r, ...payload } : r)),
-      );
+      this.routes.update((list) => list.map((r) => (r.id === routeId ? { ...r, ...payload } : r)));
       this.snackBar.open('Route & waypoints updated in local state', 'OK', { duration: 3000 });
     }
   }

@@ -32,8 +32,26 @@ const VEHICLE_MAKES: readonly VehicleSpec[] = [
 ];
 
 const VEHICLE_STATUSES: readonly VehicleStatus[] = ['Available', 'InMaintenance', 'OutOfService'];
-const DRIVER_FIRST_NAMES: readonly string[] = ['Elena', 'Marcus', 'Devon', 'Sofia', 'Liam', 'Nadia', 'Carlos', 'Hannah'];
-const DRIVER_LAST_NAMES: readonly string[] = ['Rostova', 'Vance', 'Brooks', 'Patel', 'Nguyen', 'Kowalski', 'Silva', 'Chen'];
+const DRIVER_FIRST_NAMES: readonly string[] = [
+  'Elena',
+  'Marcus',
+  'Devon',
+  'Sofia',
+  'Liam',
+  'Nadia',
+  'Carlos',
+  'Hannah',
+];
+const DRIVER_LAST_NAMES: readonly string[] = [
+  'Rostova',
+  'Vance',
+  'Brooks',
+  'Patel',
+  'Nguyen',
+  'Kowalski',
+  'Silva',
+  'Chen',
+];
 const LICENSE_CLASSES: readonly LicenseClass[] = ['ClassA', 'ClassB', 'ClassC', 'Standard'];
 const DRIVER_STATUSES: readonly DriverStatus[] = ['Active', 'Inactive', 'OnLeave'];
 const ROUTE_STATUSES: readonly RouteStatus[] = ['Draft', 'Active', 'Archived'];
@@ -47,18 +65,39 @@ interface CityWaypointSpec {
 
 const CITIES: readonly CityWaypointSpec[] = [
   { label: 'Chicago Hub', address: '233 S Wacker Dr, Chicago, IL', lat: 41.8781, lon: -87.6298 },
-  { label: 'Joliet Intermodal', address: '3000 Channahon Rd, Joliet, IL', lat: 41.4686, lon: -88.1517 },
-  { label: 'Indianapolis Depot', address: '500 W Washington St, Indianapolis, IN', lat: 39.7684, lon: -86.1581 },
-  { label: 'Milwaukee Terminal', address: '400 E Wisconsin Ave, Milwaukee, WI', lat: 43.0389, lon: -87.9065 },
+  {
+    label: 'Joliet Intermodal',
+    address: '3000 Channahon Rd, Joliet, IL',
+    lat: 41.4686,
+    lon: -88.1517,
+  },
+  {
+    label: 'Indianapolis Depot',
+    address: '500 W Washington St, Indianapolis, IN',
+    lat: 39.7684,
+    lon: -86.1581,
+  },
+  {
+    label: 'Milwaukee Terminal',
+    address: '400 E Wisconsin Ave, Milwaukee, WI',
+    lat: 43.0389,
+    lon: -87.9065,
+  },
   { label: 'St. Louis Gateway', address: '1 Market St, St. Louis, MO', lat: 38.627, lon: -90.1994 },
-  { label: 'Detroit Logistics Park', address: '100 Renaissance Ctr, Detroit, MI', lat: 42.3314, lon: -83.0458 },
+  {
+    label: 'Detroit Logistics Park',
+    address: '100 Renaissance Ctr, Detroit, MI',
+    lat: 42.3314,
+    lon: -83.0458,
+  },
 ];
 
-export const SEARCH_TERMS: Readonly<Record<'vehicles' | 'drivers' | 'routes', readonly string[]>> = {
-  vehicles: ['freight', 'volvo', 'isuzu', 'ford', 'cascadia', 'transit'],
-  drivers: ['elena', 'marcus', 'devon', 'sofia', 'emp-', 'example.com'],
-  routes: ['chi', 'ind', 'mke', 'stl', 'corridor', 'rt-'],
-};
+export const SEARCH_TERMS: Readonly<Record<'vehicles' | 'drivers' | 'routes', readonly string[]>> =
+  {
+    vehicles: ['freight', 'volvo', 'isuzu', 'ford', 'cascadia', 'transit'],
+    drivers: ['elena', 'marcus', 'devon', 'sofia', 'emp-', 'example.com'],
+    routes: ['chi', 'ind', 'mke', 'stl', 'corridor', 'rt-'],
+  };
 
 function encodeBase33(num: number, length: number): string {
   let value = Math.abs(Math.floor(num));
@@ -79,7 +118,7 @@ export function generateVehiclePayload(
   runId: number,
   vu: number,
   iter: number,
-  salt = 0
+  salt = 0,
 ): CreateVehicleRequest {
   const token = uniqueToken(runId, vu, iter, salt);
   const spec = VEHICLE_MAKES[(vu + iter + salt) % VEHICLE_MAKES.length];
@@ -103,12 +142,14 @@ export function generateDriverPayload(
   runId: number,
   vu: number,
   iter: number,
-  salt = 0
+  salt = 0,
 ): CreateDriverRequest {
   const token = uniqueToken(runId, vu, iter, salt);
   const first = DRIVER_FIRST_NAMES[(vu + iter) % DRIVER_FIRST_NAMES.length];
   const last = DRIVER_LAST_NAMES[(vu + iter * 3 + salt) % DRIVER_LAST_NAMES.length];
-  const phoneDigits = String(1000000000 + ((runId * 100000 + vu * 1000 + iter + salt) % 8999999999));
+  const phoneDigits = String(
+    1000000000 + ((runId * 100000 + vu * 1000 + iter + salt) % 8999999999),
+  );
 
   return {
     employeeNumber: `EMP-${token}`,
@@ -178,7 +219,7 @@ export function generateRoutePayload(
   runId: number,
   vu: number,
   iter: number,
-  salt = 0
+  salt = 0,
 ): CreateRouteRequest {
   const token = uniqueToken(runId, vu, iter, salt);
   const idx = vu + iter + salt;

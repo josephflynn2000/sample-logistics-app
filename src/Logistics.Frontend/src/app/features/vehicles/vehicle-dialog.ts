@@ -221,22 +221,13 @@ export class VehicleDialog {
       this.data?.vehicle?.year ?? 2024,
       [Validators.required, Validators.min(1990), Validators.max(2100)],
     ],
-    type: [
-      (this.data?.vehicle?.type ?? 'SemiTractor') as VehicleType,
-      [Validators.required],
-    ],
-    capacityKg: [
-      this.data?.vehicle?.capacityKg ?? 18000,
-      [Validators.required, Validators.min(1)],
-    ],
+    type: [(this.data?.vehicle?.type ?? 'SemiTractor') as VehicleType, [Validators.required]],
+    capacityKg: [this.data?.vehicle?.capacityKg ?? 18000, [Validators.required, Validators.min(1)]],
     capacityVolumeM3: [
       this.data?.vehicle?.capacityVolumeM3 ?? 75,
       [Validators.required, Validators.min(0.1)],
     ],
-    status: [
-      (this.data?.vehicle?.status ?? 'Available') as VehicleStatus,
-      [Validators.required],
-    ],
+    status: [(this.data?.vehicle?.status ?? 'Available') as VehicleStatus, [Validators.required]],
   });
 
   protected onVinInput(event: Event): void {

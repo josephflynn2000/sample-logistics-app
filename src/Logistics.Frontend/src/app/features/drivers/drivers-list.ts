@@ -39,9 +39,7 @@ export class DriversList {
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly snackBar = inject(MatSnackBar);
 
-  private readonly expiryThresholdIso: string = new Date(
-    Date.now() + 90 * 24 * 60 * 60 * 1000,
-  )
+  private readonly expiryThresholdIso: string = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
 

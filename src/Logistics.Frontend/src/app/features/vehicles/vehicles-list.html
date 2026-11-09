@@ -151,9 +151,7 @@
               (click)="toggleMaintenance(vehicle)"
             >
               <mat-icon>build</mat-icon>
-              <span>{{
-                vehicle.status === 'Available' ? 'Service Bay' : 'Return Ready'
-              }}</span>
+              <span>{{ vehicle.status === 'Available' ? 'Service Bay' : 'Return Ready' }}</span>
             </button>
 
             <button
@@ -173,7 +171,9 @@
               color="warn"
               (click)="deleteVehicle(vehicle)"
               matTooltip="Remove vehicle from fleet"
-              [attr.aria-label]="'Remove ' + vehicle.year + ' ' + vehicle.make + ' ' + vehicle.model"
+              [attr.aria-label]="
+                'Remove ' + vehicle.year + ' ' + vehicle.make + ' ' + vehicle.model
+              "
             >
               <mat-icon>delete_outline</mat-icon>
             </button>

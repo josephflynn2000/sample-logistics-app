@@ -76,15 +76,13 @@ export function buildJUnitXml(data: K6SummaryData): string {
   for (const tc of testCases) {
     if (tc.ok) {
       lines.push(
-        `    <testcase classname="${escapeXml(tc.classname)}" name="${escapeXml(tc.name)}" />`
+        `    <testcase classname="${escapeXml(tc.classname)}" name="${escapeXml(tc.name)}" />`,
       );
     } else {
       lines.push(
-        `    <testcase classname="${escapeXml(tc.classname)}" name="${escapeXml(tc.name)}">`
+        `    <testcase classname="${escapeXml(tc.classname)}" name="${escapeXml(tc.name)}">`,
       );
-      lines.push(
-        `      <failure message="Threshold breached: ${escapeXml(tc.thresholdExpr)}" />`
-      );
+      lines.push(`      <failure message="Threshold breached: ${escapeXml(tc.thresholdExpr)}" />`);
       lines.push('    </testcase>');
     }
   }
@@ -105,28 +103,28 @@ export function formatResourceAndApiSummary(data: K6SummaryData): string {
   const out: string[] = [];
   out.push('');
   out.push(
-    '===================================================================================================='
+    '====================================================================================================',
   );
   out.push(
-    ` Logistics.Backend k6 Performance Summary | Scenario: ${SCENARIO.toUpperCase()} | Target: ${API_BASE_URL}`
+    ` Logistics.Backend k6 Performance Summary | Scenario: ${SCENARIO.toUpperCase()} | Target: ${API_BASE_URL}`,
   );
   out.push(
-    '===================================================================================================='
+    '====================================================================================================',
   );
   out.push(
-    ` Total Requests: ${totalReqs} (${rps.toFixed(1)} req/s) | Failed: ${failRate.toFixed(2)}% | Checks Passed: ${checkRate.toFixed(2)}%`
+    ` Total Requests: ${totalReqs} (${rps.toFixed(1)} req/s) | Failed: ${failRate.toFixed(2)}% | Checks Passed: ${checkRate.toFixed(2)}%`,
   );
   out.push(
-    ` Overall Latency: avg=${fmt(overall.avg)} | med=${fmt(overall.med)} | p90=${fmt(overall['p(90)'])} | p95=${fmt(overall['p(95)'])}`
+    ` Overall Latency: avg=${fmt(overall.avg)} | med=${fmt(overall.med)} | p90=${fmt(overall['p(90)'])} | p95=${fmt(overall['p(95)'])}`,
   );
   out.push(
-    '----------------------------------------------------------------------------------------------------'
+    '----------------------------------------------------------------------------------------------------',
   );
   out.push(
-    ` ${pad('Resource', 10)} | ${pad('API Operation', 25)} | ${pad('Method', 6)} | ${pad('Avg', 10, true)} | ${pad('Med (p50)', 10, true)} | ${pad('p90', 10, true)} | ${pad('p95', 10, true)} | ${pad('Max', 10, true)}`
+    ` ${pad('Resource', 10)} | ${pad('API Operation', 25)} | ${pad('Method', 6)} | ${pad('Avg', 10, true)} | ${pad('Med (p50)', 10, true)} | ${pad('p90', 10, true)} | ${pad('p95', 10, true)} | ${pad('Max', 10, true)}`,
   );
   out.push(
-    '----------------------------------------------------------------------------------------------------'
+    '----------------------------------------------------------------------------------------------------',
   );
 
   let lastResource: string | null = null;
@@ -138,17 +136,17 @@ export function formatResourceAndApiSummary(data: K6SummaryData): string {
     }
     if (lastResource && lastResource !== op.resource) {
       out.push(
-        '----------------------------------------------------------------------------------------------------'
+        '----------------------------------------------------------------------------------------------------',
       );
     }
     lastResource = op.resource;
     out.push(
-      ` ${pad(op.resource, 10)} | ${pad(op.operation, 25)} | ${pad(op.method, 6)} | ${pad(fmt(vals.avg), 10, true)} | ${pad(fmt(vals.med), 10, true)} | ${pad(fmt(vals['p(90)']), 10, true)} | ${pad(fmt(vals['p(95)']), 10, true)} | ${pad(fmt(vals.max), 10, true)}`
+      ` ${pad(op.resource, 10)} | ${pad(op.operation, 25)} | ${pad(op.method, 6)} | ${pad(fmt(vals.avg), 10, true)} | ${pad(fmt(vals.med), 10, true)} | ${pad(fmt(vals['p(90)']), 10, true)} | ${pad(fmt(vals['p(95)']), 10, true)} | ${pad(fmt(vals.max), 10, true)}`,
     );
   }
 
   out.push(
-    '===================================================================================================='
+    '====================================================================================================',
   );
   out.push('');
   return out.join('\n');

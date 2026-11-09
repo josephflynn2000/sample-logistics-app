@@ -158,7 +158,7 @@ function runFullCrudSmokeCycle(data: SeedContext, vu: number, iter: number): voi
     const rWpPut = client.replaceRouteWaypoints(
       createdR.body.id,
       generateWaypoints(vu + iter + 1),
-      rPatch.etag
+      rPatch.etag,
     );
     client.deleteRoute(createdR.body.id, rWpPut.etag);
   }
@@ -212,7 +212,8 @@ function runWeightedMixedOperation(data: SeedContext, vu: number, iter: number):
   // 80..87 (8%): POST create
   if (bucket < 88) {
     if (resourceIdx === 0) client.createVehicle(generateVehiclePayload(data.runId, vu, iter, 40));
-    else if (resourceIdx === 1) client.createDriver(generateDriverPayload(data.runId, vu, iter, 41));
+    else if (resourceIdx === 1)
+      client.createDriver(generateDriverPayload(data.runId, vu, iter, 41));
     else client.createRoute(generateRoutePayload(data.runId, vu, iter, 42));
     return;
   }
@@ -244,7 +245,7 @@ function runWeightedMixedOperation(data: SeedContext, vu: number, iter: number):
         client.replaceVehicle(
           id,
           { ...current.body, capacityKg: (current.body.capacityKg ?? 10000) + 10 },
-          current.etag
+          current.etag,
         );
       }
     } else if (resourceIdx === 1) {
@@ -284,7 +285,7 @@ function runIsolatedEndpoint(
   data: SeedContext,
   vu: number,
   iter: number,
-  operation: OperationName
+  operation: OperationName,
 ): void {
   switch (operation) {
     case 'Vehicles_List':

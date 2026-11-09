@@ -1,10 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import {
-  CdkDragDrop,
-  DragDropModule,
-  moveItemInArray,
-} from '@angular/cdk/drag-drop';
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -90,11 +86,7 @@ export interface RouteEditorResult {
         <div class="form-row two-col">
           <mat-form-field appearance="outline">
             <mat-label>Route Corridor Name</mat-label>
-            <input
-              matInput
-              formControlName="name"
-              placeholder="Chicago Depot to Minneapolis Hub"
-            />
+            <input matInput formControlName="name" placeholder="Chicago Depot to Minneapolis Hub" />
             @if (form.controls.name.hasError('required')) {
               <mat-error>Route name is required</mat-error>
             }
@@ -232,11 +224,7 @@ export interface RouteEditorResult {
 
       <mat-dialog-actions align="end" class="dialog-actions">
         <button mat-button type="button" (click)="close()">Cancel</button>
-        <button
-          mat-flat-button
-          type="submit"
-          [disabled]="form.invalid || waypoints().length < 2"
-        >
+        <button mat-flat-button type="submit" [disabled]="form.invalid || waypoints().length < 2">
           {{ isEditMode ? 'Save Route & Waypoints' : 'Create Dispatch Route' }}
         </button>
       </mat-dialog-actions>
@@ -518,11 +506,7 @@ export class RouteEditor {
     this.waypoints.set(this.resequence(filtered));
   }
 
-  protected updateWaypointField(
-    index: number,
-    field: 'label' | 'address',
-    event: Event,
-  ): void {
+  protected updateWaypointField(index: number, field: 'label' | 'address', event: Event): void {
     const val = (event.target as HTMLInputElement | null)?.value ?? '';
     this.waypoints.update((list) =>
       list.map((item, i) => (i === index ? { ...item, [field]: val } : item)),
@@ -536,11 +520,7 @@ export class RouteEditor {
     );
   }
 
-  protected updateWaypointNumber(
-    index: number,
-    field: 'dwellTimeMinutes',
-    event: Event,
-  ): void {
+  protected updateWaypointNumber(index: number, field: 'dwellTimeMinutes', event: Event): void {
     const num = Number((event.target as HTMLInputElement | null)?.value ?? 0);
     this.waypoints.update((list) =>
       list.map((item, i) => (i === index ? { ...item, [field]: Math.max(0, num) } : item)),

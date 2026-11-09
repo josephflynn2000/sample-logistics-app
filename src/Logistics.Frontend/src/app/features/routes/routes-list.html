@@ -101,11 +101,7 @@
 
           <!-- Waypoints Progression Timeline -->
           <div class="waypoints-timeline" role="list" aria-label="Waypoints Progression">
-            @for (
-              wp of route.waypoints ?? [];
-              track wp.sequenceNumber;
-              let isLast = $last
-            ) {
+            @for (wp of route.waypoints ?? []; track wp.sequenceNumber; let isLast = $last) {
               <div class="timeline-step" role="listitem">
                 <div class="timeline-rail" aria-hidden="true">
                   <div
@@ -143,9 +139,7 @@
               class="action-btn"
               (click)="toggleRouteStatus(route)"
             >
-              <mat-icon>{{
-                route.status === 'Active' ? 'pause_circle' : 'play_circle'
-              }}</mat-icon>
+              <mat-icon>{{ route.status === 'Active' ? 'pause_circle' : 'play_circle' }}</mat-icon>
               <span>{{ route.status === 'Active' ? 'Set Draft' : 'Activate' }}</span>
             </button>
 

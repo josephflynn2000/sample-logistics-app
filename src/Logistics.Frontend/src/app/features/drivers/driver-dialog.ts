@@ -236,10 +236,7 @@ export class DriverDialog {
     ],
     licenseExpiryDate: [
       this.data?.driver?.licenseExpiryDate ?? '2028-12-31',
-      [
-        Validators.required,
-        Validators.pattern(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/),
-      ],
+      [Validators.required, Validators.pattern(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/)],
     ],
     status: [(this.data?.driver?.status ?? 'Active') as DriverStatus, [Validators.required]],
   });
