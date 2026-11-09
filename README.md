@@ -146,7 +146,7 @@ Every Pull/Merge Request targeting `main` automatically runs [`.github/workflows
 1. **Frontend Build & Unit Tests (`frontend-build-and-test`)**:
    - Checks code formatting with Prettier (`npm run format:check`).
    - Typechecks the k6 performance test suite against the Kiota-generated client models (`npm run typecheck:perf`).
-   - Builds the Angular application in `production` configuration (`npm run build`), verifying bundle budgets (with `.angular/cache` cached across runs).
+   - Builds the Angular application in `production` configuration (`npm run build`), verifying bundle budgets.
    - Runs headless Vitest unit tests (`npm run test:ci`).
 2. **Backend Build, Contract & Integration Tests (`backend-build-and-test`)**:
    - Compiles `main.slnx` in `Release` configuration while enforcing `.editorconfig` code style (`dotnet build main.slnx --configuration Release -p:EnforceCodeStyleInBuild=true`).
