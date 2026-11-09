@@ -141,16 +141,15 @@ aspire dashboard run
 
 ## CI/CD — Merge Request Workflow
 
-Every Pull/Merge Request targeting `main` automatically runs [`.github/workflows/ci-mr.yml`](.github/workflows/ci-mr.yml) (`pull_request` and `merge_group` triggers), which aggregates two fast parallel jobs behind the single **`MR Gate` (`mr-gate`)** status check:
+Every Pull/Merge Request targeting `main` automatically runs [`.github/workflows/ci-mr.yml`](.github/workflows/ci-mr.yml) (`pull_request` and `merge_group` triggers), which executes two fast parallel jobs required by the **`Protected Main`** branch ruleset before merging is allowed:
 
 1. **Frontend Build & Unit Tests (`frontend-build-and-test`)**:
    - Checks code formatting with Prettier (`npm run format:check`).
    - Typechecks the k6 performance test suite against the Kiota-generated client models (`npm run typecheck:perf`).
-   - Builds the Angular application in `production` configuration (`npm run build`), verifying bundle budgets.
+   - Builds the Angular application in `production` configuration (`npm run build`), verifying bundle budgets (with `.angular/cache` cached across runs).
    - Runs headless Vitest unit tests (`npm run test:ci`).
 2. **Backend Build, Contract & Integration Tests (`backend-build-and-test`)**:
-   - Verifies C# code style against `.editorconfig` (`dotnet format main.slnx --verify-no-changes`).
-   - Compiles `main.slnx` in `Release` configuration (`dotnet build main.slnx --configuration Release`).
+   - Compiles `main.slnx` in `Release` configuration while enforcing `.editorconfig` code style (`dotnet build main.slnx --configuration Release -p:EnforceCodeStyleInBuild=true`).
    - Verifies that [`docs/openapi/openapi.json`](docs/openapi/openapi.json) has no uncommitted drift after build.
    - Runs the MSTest backend integration test suite (`dotnet test --solution main.slnx --configuration Release --no-build`).
 

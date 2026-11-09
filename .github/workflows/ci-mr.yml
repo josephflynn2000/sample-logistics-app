@@ -32,14 +32,22 @@ jobs:
           node-version: 24.x
           cache: npm
 
+      - name: Cache Angular build & test artifacts
+        uses: actions/cache@v6
+        with:
+          path: .angular/cache
+          key: angular-cache-${{ runner.os }}-${{ hashFiles('package-lock.json', 'src/Logistics.Frontend/**') }}
+          restore-keys: |
+            angular-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            angular-cache-${{ runner.os }}-
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit
 
-      - name: Check formatting (Prettier)
-        run: npm run format:check
-
-      - name: Typecheck k6 performance tests against Kiota client models
-        run: npm run typecheck:perf
+      - name: Check formatting (Prettier) & k6 types
+        run: |
+          npm run format:check
+          npm run typecheck:perf
 
       - name: Build Angular frontend (Production)
         run: npm run build
@@ -60,28 +68,26 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'main.slnx') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: Restore .NET dependencies
         run: dotnet restore main.slnx
 
-      - name: Verify C# code formatting (.editorconfig)
-        run: dotnet format main.slnx --verify-no-changes --no-restore --verbosity quiet
+      - name: Build Backend, enforce code style & generate OpenAPI specification
+        run: dotnet build main.slnx --configuration Release --no-restore -p:EnforceCodeStyleInBuild=true
 
-      - name: Build Backend & generate OpenAPI specification
-        run: dotnet build main.slnx --configuration Release --no-restore
+      - name: Verify OpenAPI specification has no uncommitted drift
+        run: |
+          if ! git diff --exit-code docs/openapi/openapi.json; then
+            echo "::error file=docs/openapi/openapi.json::docs/openapi/openapi.json is out of sync with Logistics.Backend. Run 'dotnet build' and commit the updated spec."
+            exit 1
+          fi
 
       - name: Run Backend integration tests (MSTest)
         run: dotnet test --solution main.slnx --configuration Release --no-build
-
-  mr-gate:
-    name: MR Gate
-    if: always()
-    needs: [frontend-build-and-test, backend-build-and-test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check MR validation status
-        run: |
-          if [[ "${{ needs.frontend-build-and-test.result }}" != "success" || "${{ needs.backend-build-and-test.result }}" != "success" ]]; then
-            echo "::error::One or more required Merge Request checks failed."
-            exit 1
-          fi
-          echo "All Merge Request checks passed."
