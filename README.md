@@ -139,9 +139,13 @@ aspire dashboard run
   ./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5045/v1 --reports
   ```
 
-## CI/CD — Merge Request Workflow
+## CI/CD Workflows
 
-Every Pull/Merge Request targeting `main` automatically runs [`.github/workflows/ci-mr.yml`](.github/workflows/ci-mr.yml) (`pull_request` and `merge_group` triggers), which executes two fast parallel jobs required by the **`Protected Main`** branch ruleset before merging is allowed:
+Pull Requests targeting `main` are validated by two stage-based GitHub Actions workflows:
+
+### 1. Pull Request CI ([`.github/workflows/ci-pull-request.yml`](.github/workflows/ci-pull-request.yml))
+
+Runs fast build and unit/contract checks on every PR push (including draft PRs) and is required by the **`Protected Main`** branch ruleset:
 
 1. **Frontend Build & Unit Tests (`frontend-build-and-test`)**:
    - Checks code formatting with Prettier (`npm run format:check`).
@@ -152,6 +156,14 @@ Every Pull/Merge Request targeting `main` automatically runs [`.github/workflows
    - Compiles `main.slnx` in `Release` configuration while enforcing `.editorconfig` code style (`dotnet build main.slnx --configuration Release -p:EnforceCodeStyleInBuild=true`).
    - Verifies that [`docs/openapi/openapi.json`](docs/openapi/openapi.json) has no uncommitted drift after build.
    - Runs the MSTest backend integration test suite (`dotnet test --solution main.slnx --configuration Release --no-build`).
+
+### 2. Pre-Merge CI ([`.github/workflows/ci-pre-merge.yml`](.github/workflows/ci-pre-merge.yml))
+
+Runs heavier end-to-end system integration tests only when a PR is ready to merge (`ready_for_review` / `draft == false` or `merge_group`):
+
+1. **System Integration Tests (`system-integration-tests`)**:
+   - Starts the application stack in `Staging` mode (`aspire start -- --environment Staging`), provisioning a real PostgreSQL container (`LogisticsDatabase`) and waiting for `Backend` (`/health`) readiness (`aspire wait Backend --status up`).
+   - Executes all 32 **Bruno v4** OpenCollection API conformance requests (`./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5045/v1 --reports`) against the containerized stack and stops the stack (`aspire stop`).
 
 ### Running Merge Request Checks Locally
 
@@ -172,6 +184,12 @@ npm run test:ci
 dotnet build main.slnx --configuration Release
 git diff --exit-code docs/openapi/openapi.json
 dotnet test --solution main.slnx --configuration Release --no-build
+
+# Run Aspire Staging (PostgreSQL container) + Bruno API Conformance Suite
+aspire start -- --environment Staging
+aspire wait Backend --status up --timeout 120
+./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5045/v1 --reports
+aspire stop
 ```
 
 
