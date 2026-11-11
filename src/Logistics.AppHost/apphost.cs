@@ -17,6 +17,7 @@ if (!builder.Environment.IsDevelopment())
     var postgresdb = postgres.AddDatabase("LogisticsDatabase");
 
     backend.WithReference(postgresdb)
+        .WithEnvironment("ASPNETCORE_ENVIRONMENT", builder.Environment.EnvironmentName)
         .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
         .WaitFor(postgresdb);
 }

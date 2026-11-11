@@ -1,0 +1,66 @@
+name: Pre-Merge CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  system-integration-tests:
+    name: System Integration Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install test orchestration & API runner CLIs
+        run: |
+          curl -sSL https://aspire.dev/install.sh | bash -s -- --version 13.6.4
+          npm install -g @usebruno/cli
+
+      - name: Start application stack (Staging) & wait for backend readiness
+        run: |
+          aspire start --non-interactive -- --environment Staging
+          aspire wait Backend --status up --timeout 120 --non-interactive
+
+      - name: Run API conformance test suite
+        run: ./tests/Logistics.Backend.APITests/run-api-tests.sh --base-url http://localhost:5045/v1 --reports
+
+      - name: Stop application stack
+        if: always()
+        run: aspire stop --non-interactive
+
+      - name: Upload system integration test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: system-integration-test-reports
+          path: tests/Logistics.Backend.APITests/Logistics.Backend.APITests/reports/
+          if-no-files-found: ignore

@@ -1,9 +1,11 @@
-name: Merge Request CI
+name: Pull Request CI
 
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
   merge_group:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -35,15 +37,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Check formatting (Prettier) & k6 types
+      - name: Check formatting & types
         run: |
           npm run format:check
           npm run typecheck:perf
 
-      - name: Build Angular frontend (Production)
+      - name: Build frontend (Production)
         run: npm run build
 
-      - name: Run Frontend unit tests (Vitest)
+      - name: Run frontend unit tests
         run: npm run test:ci
 
   backend-build-and-test:
@@ -62,7 +64,7 @@ jobs:
       - name: Restore .NET dependencies
         run: dotnet restore main.slnx
 
-      - name: Build Backend, enforce code style & generate OpenAPI specification
+      - name: Build backend, enforce code style & generate OpenAPI specification
         run: dotnet build main.slnx --configuration Release --no-restore -p:EnforceCodeStyleInBuild=true
 
       - name: Verify OpenAPI specification has no uncommitted drift
@@ -72,5 +74,5 @@ jobs:
             exit 1
           fi
 
-      - name: Run Backend integration tests (MSTest)
+      - name: Run backend integration tests
         run: dotnet test --solution main.slnx --configuration Release --no-build
