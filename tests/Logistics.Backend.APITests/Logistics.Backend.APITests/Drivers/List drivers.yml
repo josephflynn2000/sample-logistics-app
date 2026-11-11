@@ -7,12 +7,13 @@ info:
 
 http:
   method: GET
-  url: "{{baseUrl}}/drivers"
+  url: "{{baseUrl}}/drivers?pageSize=25&search=EMP-10482"
   params:
     - name: pageSize
       value: "25"
       type: query
       description: Maximum number of items to return per page (default 25, max 100).
+      disabled: true
     - name: pageToken
       value: ""
       type: query
