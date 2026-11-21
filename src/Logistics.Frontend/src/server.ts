@@ -7,6 +7,7 @@ import {
 import { RedisStore } from 'connect-redis';
 import express from 'express';
 import session from 'express-session';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { join } from 'node:path';
 import { createClient } from 'redis';
 
@@ -27,9 +28,10 @@ app.use(
 );
 
 let store: session.Store | undefined;
-if (process.env['NODE_ENV'] !== 'development') {
+const sessionCacheUri = process.env['SESSION_CACHE_URI'];
+if (process.env['NODE_ENV'] !== 'development' && sessionCacheUri) {
   const redisClient = createClient({
-    url: process.env['SESSION_CACHE_URI']!,
+    url: sessionCacheUri,
     disableOfflineQueue: true,
     socket: {
       connectTimeout: 2_000,
@@ -54,6 +56,14 @@ app.use(
       sameSite: 'lax',
       secure: 'auto',
     },
+  }),
+);
+
+app.use(
+  '/api',
+  createProxyMiddleware({
+    target: process.env['BACKEND_HTTP'] ?? 'http://localhost:5045',
+    changeOrigin: true,
   }),
 );
 
