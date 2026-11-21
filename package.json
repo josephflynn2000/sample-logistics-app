@@ -32,7 +32,10 @@
     "@microsoft/kiota-serialization-json": "^1.0.0-preview.111",
     "@microsoft/kiota-serialization-multipart": "^1.0.0-preview.111",
     "@microsoft/kiota-serialization-text": "^1.0.0-preview.111",
+    "connect-redis": "^11.0.0",
     "express": "^5.1.0",
+    "express-session": "^1.19.0",
+    "redis": "^6.3.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -41,6 +44,7 @@
     "@angular/cli": "^22.0.0",
     "@angular/compiler-cli": "^22.0.0",
     "@types/express": "^5.0.1",
+    "@types/express-session": "^1.19.0",
     "@types/node": "^22.12.0",
     "jsdom": "^30.0.0",
     "prettier": "^3.8.1",
