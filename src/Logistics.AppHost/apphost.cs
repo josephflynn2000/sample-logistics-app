@@ -13,7 +13,7 @@ var backend = builder.AddProject<Projects.Logistics_Backend>("Backend")
     .WithHttpHealthCheck("/health");
 
 #pragma warning disable ASPIREJAVASCRIPT001
-var frontend = builder.AddViteApp("Frontend", "../..", runScriptName: "start")
+var frontend = builder.AddViteApp("Frontend", "../..", runScriptName: "integration")
     .PublishAsNodeServer(entryPoint: "dist/Logistics.Frontend/server/server.mjs", outputPath: "dist/Logistics.Frontend")
     .WithReference(backend)
     .WaitFor(backend)
