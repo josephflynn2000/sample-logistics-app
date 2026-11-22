@@ -1,13 +1,19 @@
-const proxyConf = require('./proxy.conf.json');
+const { Agent } = require('node:http');
 
-const target = process.env.BACKEND_PORT
-  ? `http://localhost:${process.env.BACKEND_PORT}`
-  : proxyConf['/v1'].target;
+const devProxyAgent = new Agent({
+  keepAlive: true,
+  proxyEnv: {
+    HTTP_PROXY: process.env.HTTP_PROXY ?? 'http://127.0.0.1:8000',
+  },
+});
 
 module.exports = {
-  '/v1': {
-    ...proxyConf['/v1'],
-    target,
+  '/api': {
+    target: 'http://localhost:5045',
+    secure: false,
+    changeOrigin: true,
+    pathRewrite: { '^/api': '' },
+    agent: devProxyAgent,
     configure(proxy) {
       queueMicrotask(() => {
         proxy.removeAllListeners('error');

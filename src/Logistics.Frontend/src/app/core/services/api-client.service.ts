@@ -11,8 +11,6 @@ import type { Driver, Vehicle, Route } from '../../../../../Logistics.ClientLibr
 
 @Injectable({ providedIn: 'root' })
 export class ApiClientService {
-  private readonly platformId = inject(PLATFORM_ID);
-  public readonly isBrowser = isPlatformBrowser(this.platformId);
   public readonly client: ApiClient;
   public readonly backendConnected = signal<boolean>(true);
   public readonly globalSearch = signal<string>('');
@@ -53,14 +51,9 @@ export class ApiClientService {
     });
 
     const adapter = new FetchRequestAdapter(authProvider, undefined, undefined, httpClient);
-    const backendPort =
-      (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
-        'BACKEND_PORT'
-      ] ?? '5045';
-    adapter.baseUrl =
-      this.isBrowser && typeof window !== 'undefined'
-        ? window.location.origin
-        : `http://localhost:${backendPort}`;
+    adapter.baseUrl = isPlatformBrowser(inject(PLATFORM_ID))
+      ? `${window.location.origin}/api`
+      : (process.env['BACKEND_HTTP'] ?? 'http://localhost:5045');
 
     this.client = createApiClient(adapter);
 

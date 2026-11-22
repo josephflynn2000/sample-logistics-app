@@ -4,25 +4,17 @@ import {
   isMainModule,
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
+import { RedisStore } from 'connect-redis';
 import express from 'express';
+import session from 'express-session';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { join } from 'node:path';
+import { createClient } from 'redis';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
-
-/**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/{*splat}', (req, res) => {
- *   // Handle API request
- * });
- * ```
- */
 
 /**
  * Serve static files from /browser
@@ -32,6 +24,46 @@ app.use(
     maxAge: '1y',
     index: false,
     redirect: false,
+  }),
+);
+
+let store: session.Store | undefined;
+const sessionCacheUri = process.env['SESSION_CACHE_URI'];
+if (process.env['NODE_ENV'] !== 'development' && sessionCacheUri) {
+  const redisClient = createClient({
+    url: sessionCacheUri,
+    disableOfflineQueue: true,
+    socket: {
+      connectTimeout: 2_000,
+      reconnectStrategy: (retries) => Math.min(retries * 100, 2_000),
+    },
+  });
+  redisClient.on('error', (err) => console.error('[Redis]', err));
+  redisClient.connect().catch((err) => console.error('[Redis]', err));
+  store = new RedisStore({ client: redisClient, prefix: 'logistics:sess:' });
+}
+
+app.use(
+  session({
+    name: 'logistics.sid',
+    secret: process.env['SESSION_SECRET'] ?? 'logistics-default-session-secret',
+    store,
+    resave: false,
+    saveUninitialized: false,
+    proxy: true,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: 'auto',
+    },
+  }),
+);
+
+app.use(
+  '/api',
+  createProxyMiddleware({
+    target: process.env['BACKEND_HTTP'] ?? 'http://localhost:5045',
+    changeOrigin: true,
   }),
 );
 
